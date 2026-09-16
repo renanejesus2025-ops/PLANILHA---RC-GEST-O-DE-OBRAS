@@ -1,0 +1,54 @@
+# ==============================
+# SISTEMA DE GESTÃO DE OBRAS
+# Git Ignore
+# ==============================
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+
+# Testes e cobertura
+.pytest_cache/
+.coverage
+htmlcov/
+
+# VS Code
+.vscode/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Arquivos temporários
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# Excel - arquivos temporários/de bloqueio
+~$*.xlsx
+~$*.xlsm
+~$*.xls
+
+# Segredos e credenciais
+.env
+.env.*
+*.pem
+*.key
+
+# Logs
+*.log
+
+# Arquivos de saída temporários
+temp/
+tmp/
+cache/

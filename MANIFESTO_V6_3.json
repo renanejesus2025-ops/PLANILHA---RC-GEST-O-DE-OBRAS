@@ -1,0 +1,16 @@
+{
+  "version": "V6.3",
+  "status": "HOMOLOGADA",
+  "formal_documents": 18,
+  "formal_pairs": 18,
+  "files": 456,
+  "docx": 204,
+  "md": 249,
+  "txt": 3,
+  "historical_files": 189,
+  "audit_failures": 0,
+  "profiles": [
+    "Administrador/Operador",
+    "Cliente"
+  ]
+}
