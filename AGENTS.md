@@ -195,7 +195,7 @@ Outras bibliotecas somente quando houver necessidade técnica documentada.
 
 ## 9. ARQUITETURA DO SISTEMA
 
-A arquitetura deve preservar as seguintes camadas:
+A arquitetura deve preservar as seguintes camadas principais:
 
 1. Interface
 2. Base de Dados
@@ -204,7 +204,16 @@ A arquitetura deve preservar as seguintes camadas:
 5. Dashboard
 6. Inteligência e Insights
 7. Auditoria
-8. Perfis e Acesso
+
+### Camada transversal: Perfis e Acesso
+
+**Perfis e Acesso não constitui uma etapa sequencial da arquitetura.**
+
+Trata-se de uma camada transversal que atua sobre as demais camadas do sistema, controlando o que cada perfil pode visualizar, editar, executar ou acessar.
+
+A arquitetura de acesso deve seguir o princípio:
+
+**Perfil → Identificação → Interface → Permissões → Proteção → Dados**
 
 Os perfis oficiais da V1 são:
 
@@ -221,7 +230,6 @@ Possui acesso predominantemente gerencial e de consulta.
 Não deve editar a base operacional, fórmulas, configurações ou áreas técnicas protegidas.
 
 ---
-
 ## 10. EXCEL
 
 O Excel é o principal produto operacional da primeira fase.
