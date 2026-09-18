@@ -26,10 +26,13 @@ independentemente de `situacao`. Isto é uma pendência registrada no
 relatório da Etapa 4, não uma omissão silenciosa.
 
 **Orçamento Vigente (Seção 4):** = Orçamento Inicial (Etapa 3,
-`total_previsto_obra`) + Aportes. A parcela de Alterações Formais
-Aprovadas está deliberadamente ausente — o módulo Alterações não foi
-construído nesta etapa (Seção 4: "não inventar implementação de
-Alterações").
+`total_previsto_obra`) + Aportes + Alterações Formais Aprovadas.
+
+**Nota da Etapa 5:** a parcela de Alterações Formais Aprovadas, antes
+deliberadamente ausente (Seção 4 da Etapa 4: "não inventar implementação
+de Alterações", pois o módulo ainda não existia), foi implementada —
+ver `src/alteracoes/calculos.py:total_alteracoes_aprovadas`. REG-017
+está, a partir desta etapa, completamente implementado (3 parcelas).
 
 **Divisão por zero (Seção 7):** `percentual_orcamento_consumido` retorna
 `None` — não `0` — quando o Orçamento Vigente é zero, seguindo o mesmo
@@ -41,6 +44,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from src.alteracoes.calculos import total_alteracoes_aprovadas
 from src.base_dados.repositorio import BaseDados
 from src.modelo.entidades import Financeiro, Pagamento
 from src.modelo.enums import TipoLancamentoFinanceiro
@@ -106,12 +110,18 @@ def total_outras_saidas(base: BaseDados, id_obra: str) -> float:
 # --------------------------------------------------------------------
 def orcamento_vigente(base: BaseDados, id_obra: str) -> float:
     """
-    ORÇAMENTO VIGENTE = ORÇAMENTO INICIAL (Etapa 3) + APORTES (Seção 4).
+    ORÇAMENTO VIGENTE = ORÇAMENTO INICIAL (Etapa 3) + APORTES (Etapa 4)
+    + ALTERAÇÕES FORMAIS APROVADAS (Etapa 5) — REG-017 completo.
 
-    A parcela de Alterações Formais Aprovadas fica preparada para
-    integração futura (Seção 4) — não implementada nesta etapa.
+    Antes da Etapa 5, esta função somava apenas as 2 primeiras parcelas
+    (ver relatório da Etapa 4, "Limitações"/REG-017 nota da Revisão 7) —
+    a parcela de Alterações estava preparada, mas não implementada.
     """
-    return total_previsto_obra(base, id_obra) + total_aportes(base, id_obra)
+    return (
+        total_previsto_obra(base, id_obra)
+        + total_aportes(base, id_obra)
+        + total_alteracoes_aprovadas(base, id_obra)
+    )
 
 
 def saldo_orcamentario(base: BaseDados, id_obra: str) -> float:

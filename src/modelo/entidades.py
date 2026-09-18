@@ -36,8 +36,15 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Optional
 
-from src.modelo.enums import MetodoExecucao, StatusExecucao, StatusServico, TipoLancamentoFinanceiro
-from src.validacoes.numeros import validar_numero_nao_negativo
+from src.modelo.enums import (
+    MetodoExecucao,
+    StatusAprovacaoAlteracao,
+    StatusExecucao,
+    StatusServico,
+    TipoAlteracao,
+    TipoLancamentoFinanceiro,
+)
+from src.validacoes.numeros import validar_numero, validar_numero_nao_negativo
 
 
 @dataclass
@@ -325,17 +332,31 @@ class ExecucaoMedicao:
 
 @dataclass
 class Alteracao:
-    """ENTIDADE: ALTERAÇÕES (DAD_001)."""
+    """ENTIDADE: ALTERAÇÕES (DAD_001) — domínio fechado na Etapa 5
+    (2026-09-17): Tipo de Alteração e Status de Aprovação, fechando
+    REG-012. Fecha também REG-017 (Orçamento Vigente completo — ver
+    `src/alteracoes/calculos.py:total_alteracoes_aprovadas`).
+    """
 
     id: str
     id_obra: str  # FK -> Obra.id
     descricao: str  # [P]
-    tipo_alteracao: Optional[str] = None  # [H] domínio (Escopo/Prazo/Orçamento — proposta, não homologada)
-    impacto_orcamento: Optional[float] = None  # [P]
-    impacto_prazo_dias: Optional[int] = None  # [P]
-    status_aprovacao: Optional[str] = None  # [H] fluxo de aprovação não definido (REG-012)
+    tipo_alteracao: Optional[TipoAlteracao] = None
+    # ^ [D] HOMOLOGADO na Etapa 5 — domínio fechado Escopo/Prazo/Orçamento.
+    impacto_orcamento: Optional[float] = None
+    # ^ [P]. Delta com sinal (pode reduzir o orçamento) — validado por
+    # `validar_numero` (numérico, SEM exigir não-negativo; Etapa 5).
+    impacto_prazo_dias: Optional[int] = None
+    # ^ [P]. Delta com sinal (pode antecipar o prazo) — mesma validação.
+    status_aprovacao: Optional[StatusAprovacaoAlteracao] = None
+    # ^ [D] HOMOLOGADO na Etapa 5 — domínio fechado Pendente/Aprovada/
+    # Rejeitada. Sem workflow: o Operador define diretamente.
     solicitante: Optional[str] = None  # [P]
     data: Optional[date] = None  # [P]
+
+    def __post_init__(self) -> None:
+        validar_numero(self.impacto_orcamento, "Impacto no Orçamento")
+        validar_numero(self.impacto_prazo_dias, "Impacto no Prazo")
 
 
 @dataclass

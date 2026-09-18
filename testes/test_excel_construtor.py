@@ -51,6 +51,7 @@ ABAS_ESPERADAS = [
     "Serviços",
     "Financeiro",
     "Pagamentos",
+    "Alterações",
     "Resumo Financeiro",
     "Base_Dados",
 ]
@@ -59,6 +60,9 @@ ABAS_ESPERADAS = [
 # "Base_Dados"; nenhuma aba da Etapa 2/3 foi removida ou renomeada.
 # Mesmo tipo de ajuste já registrado na Etapa 3 para `test_entidades.py`/
 # `test_excel_construtor.py` (relatório da Etapa 3, Seção 3).
+# Atualizado novamente na Etapa 5 (Alterações) — nova aba "Alterações"
+# inserida entre "Pagamentos" e "Resumo Financeiro" (mesma ordem em que
+# `construir_workbook` cria as abas).
 
 
 def _construir_base_de_exemplo() -> BaseDados:

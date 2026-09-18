@@ -73,7 +73,7 @@ from src.excel.estilos import (
     PREENCHIMENTO_CABECALHO,
     PREENCHIMENTO_CALCULADO,
 )
-from src.modelo.enums import StatusServico, TipoLancamentoFinanceiro
+from src.modelo.enums import StatusAprovacaoAlteracao, StatusServico, TipoAlteracao, TipoLancamentoFinanceiro
 
 # Linhas em branco pré-formatadas (fórmulas de ID/vínculo já ativas),
 # prontas para uso direto no Excel sem dado nenhum inventado.
@@ -174,6 +174,30 @@ COL_PAG_VALOR = 4
 COL_PAG_OBSERVACAO = 5
 COL_PAG_ID_FINANCEIRO = 6
 
+# --------------------------------------------------------------------
+# Etapa 5 — colunas da aba Alterações
+# --------------------------------------------------------------------
+COLUNAS_ALTERACOES = [
+    ("ID (técnico)", 14, True, False),        # A
+    ("Tipo", 16, False, False),                # B
+    ("Data", 14, False, False),                # C
+    ("Descrição", 34, False, False),           # D
+    ("Impacto no Orçamento", 20, False, False),# E
+    ("Impacto no Prazo (dias)", 20, False, False), # F
+    ("Status de Aprovação", 18, False, False), # G
+    ("Solicitante", 22, False, False),         # H
+    ("ID_Obra (técnico)", 16, True, False),    # I
+]
+COL_ALT_ID = 1
+COL_ALT_TIPO = 2
+COL_ALT_DATA = 3
+COL_ALT_DESCRICAO = 4
+COL_ALT_IMPACTO_ORCAMENTO = 5
+COL_ALT_IMPACTO_PRAZO = 6
+COL_ALT_STATUS = 7
+COL_ALT_SOLICITANTE = 8
+COL_ALT_ID_OBRA = 9
+
 COL_SUB_ID = 1
 COL_SUB_NOME = 2
 COL_SUB_ETAPA = 3
@@ -209,6 +233,14 @@ _ROTULO_OUTRAS_ENTRADAS = TipoLancamentoFinanceiro.OUTRAS_ENTRADAS.rotulo
 _ROTULO_DESPESA = TipoLancamentoFinanceiro.DESPESA.rotulo
 _ROTULO_OUTRAS_SAIDAS = TipoLancamentoFinanceiro.OUTRAS_SAIDAS.rotulo
 
+# Listas fechadas de Tipo/Status de Alteração (Etapa 5, mesma fonte
+# usada pelo Python — nunca digitadas de novo à mão).
+_ROTULOS_TIPO_ALTERACAO = [t.rotulo for t in TipoAlteracao]
+_LISTA_TIPO_ALTERACAO = '"' + ",".join(_ROTULOS_TIPO_ALTERACAO) + '"'
+_ROTULOS_STATUS_APROVACAO = [s.rotulo for s in StatusAprovacaoAlteracao]
+_LISTA_STATUS_APROVACAO = '"' + ",".join(_ROTULOS_STATUS_APROVACAO) + '"'
+_ROTULO_APROVADA = StatusAprovacaoAlteracao.APROVADA.rotulo
+
 
 def construir_workbook(base: BaseDados | None = None) -> Workbook:
     """
@@ -231,6 +263,9 @@ def construir_workbook(base: BaseDados | None = None) -> Workbook:
     financeiro = list(base.financeiro.values())
     ultima_linha_financeiro = 1 + len(financeiro) + LINHAS_MODELO
 
+    alteracoes = list(base.alteracoes.values())
+    ultima_linha_alteracoes = 1 + len(alteracoes) + LINHAS_MODELO
+
     wb = Workbook()
     wb.remove(wb.active)  # remove a aba padrão "Sheet"
 
@@ -240,7 +275,12 @@ def construir_workbook(base: BaseDados | None = None) -> Workbook:
     _construir_aba_servicos(wb, list(base.servicos.values()), base.subetapas)
     _construir_aba_financeiro(wb, financeiro)
     _construir_aba_pagamentos(wb, list(base.pagamentos.values()), base.financeiro)
-    _construir_aba_resumo_financeiro(wb, ultima_linha_financeiro=ultima_linha_financeiro)
+    _construir_aba_alteracoes(wb, alteracoes)
+    _construir_aba_resumo_financeiro(
+        wb,
+        ultima_linha_financeiro=ultima_linha_financeiro,
+        ultima_linha_alteracoes=ultima_linha_alteracoes,
+    )
     _construir_aba_base_dados(wb, id_obra=id_obra)
     _criar_intervalos_nomeados(wb, ultima_linha_financeiro=ultima_linha_financeiro)
 
@@ -797,7 +837,9 @@ def _construir_aba_pagamentos(wb: Workbook, pagamentos: list, financeiro_por_id:
 # Aba: Resumo Financeiro (Etapa 4, Seção 28) — resumo OPERACIONAL, não o
 # Dashboard Gerencial definitivo (Seção 28/30)
 # --------------------------------------------------------------------
-def _construir_aba_resumo_financeiro(wb: Workbook, *, ultima_linha_financeiro: int) -> None:
+def _construir_aba_resumo_financeiro(
+    wb: Workbook, *, ultima_linha_financeiro: int, ultima_linha_alteracoes: int
+) -> None:
     ws = wb.create_sheet("Resumo Financeiro")
     ws.sheet_view.showGridLines = False
     ws.column_dimensions["A"].width = 34
@@ -816,6 +858,9 @@ def _construir_aba_resumo_financeiro(wb: Workbook, *, ultima_linha_financeiro: i
     letra_b_tipo = get_column_letter(COL_FIN_TIPO)
     letra_e_valor = get_column_letter(COL_FIN_VALOR)
     ul = ultima_linha_financeiro
+    letra_impacto_alt = get_column_letter(COL_ALT_IMPACTO_ORCAMENTO)
+    letra_status_alt = get_column_letter(COL_ALT_STATUS)
+    ul_alt = ultima_linha_alteracoes
 
     linhas_moeda: list[int] = []
 
@@ -835,8 +880,17 @@ def _construir_aba_resumo_financeiro(wb: Workbook, *, ultima_linha_financeiro: i
     _linha("Orçamento Inicial (Previsto)", "=Início!$B$8")
     linha_aportes = linha_atual
     _linha("Aportes", f"=SUM(Financeiro!${letra_g}$2:${letra_g}${ul})")
+    linha_alteracoes_aprovadas = linha_atual
+    _linha(
+        "Alterações Aprovadas",
+        f'=SUMIFS(Alterações!${letra_impacto_alt}$2:${letra_impacto_alt}${ul_alt},'
+        f'Alterações!${letra_status_alt}$2:${letra_status_alt}${ul_alt},"{_ROTULO_APROVADA}")',
+    )
     linha_orcamento_vigente = linha_atual
-    _linha("Orçamento Vigente", f"=B{linha_orcamento_inicial}+B{linha_aportes}")
+    _linha(
+        "Orçamento Vigente",
+        f"=B{linha_orcamento_inicial}+B{linha_aportes}+B{linha_alteracoes_aprovadas}",
+    )
     linha_custo = linha_atual
     _linha("Custo Realizado", f"=SUM(Financeiro!${letra_h}$2:${letra_h}${ul})")
     linha_saldo_orc = linha_atual
@@ -887,8 +941,8 @@ def _construir_aba_resumo_financeiro(wb: Workbook, *, ultima_linha_financeiro: i
         row=linha_atual,
         column=1,
         value=(
-            "Nota: Alterações Aprovadas ainda não integradas (Seção 4) — "
-            "Orçamento Vigente considera apenas Orçamento Inicial + Aportes."
+            "Nota da Etapa 5: Orçamento Vigente = Orçamento Inicial + Aportes + "
+            "Alterações Aprovadas (aba Alterações, REG-017 completo)."
         ),
     )
     nota1.font = FONTE_CALCULADA
@@ -906,6 +960,76 @@ def _construir_aba_resumo_financeiro(wb: Workbook, *, ultima_linha_financeiro: i
     ws.merge_cells(start_row=linha_atual, start_column=1, end_row=linha_atual, end_column=2)
 
     ws.freeze_panes = "A2"
+
+
+# --------------------------------------------------------------------
+# Aba: Alterações (Etapa 5) — Escopo / Prazo / Orçamento, com Status de
+# Aprovação (REG-012 fechado) — fecha o Orçamento Vigente (REG-017)
+# --------------------------------------------------------------------
+def _construir_aba_alteracoes(wb: Workbook, alteracoes: list) -> None:
+    ws = wb.create_sheet("Alterações")
+    _escrever_cabecalho(ws, COLUNAS_ALTERACOES)
+
+    ultima_linha = 1 + len(alteracoes) + LINHAS_MODELO
+    prefixo = PREFIXOS_ID["ALTERACOES"]
+
+    for r in range(2, ultima_linha + 1):
+        indice = r - 2
+        if indice < len(alteracoes):
+            alteracao = alteracoes[indice]
+            ws.cell(row=r, column=COL_ALT_ID, value=alteracao.id)
+            rotulo_tipo = alteracao.tipo_alteracao.rotulo if alteracao.tipo_alteracao is not None else None
+            ws.cell(row=r, column=COL_ALT_TIPO, value=rotulo_tipo)
+            celula_data = ws.cell(row=r, column=COL_ALT_DATA, value=alteracao.data)
+            celula_data.number_format = "DD/MM/YYYY"
+            ws.cell(row=r, column=COL_ALT_DESCRICAO, value=alteracao.descricao)
+            ws.cell(row=r, column=COL_ALT_IMPACTO_ORCAMENTO, value=alteracao.impacto_orcamento)
+            ws.cell(row=r, column=COL_ALT_IMPACTO_PRAZO, value=alteracao.impacto_prazo_dias)
+            rotulo_status = alteracao.status_aprovacao.rotulo if alteracao.status_aprovacao is not None else None
+            ws.cell(row=r, column=COL_ALT_STATUS, value=rotulo_status)
+            ws.cell(row=r, column=COL_ALT_SOLICITANTE, value=alteracao.solicitante)
+        else:
+            ws.cell(
+                row=r,
+                column=COL_ALT_ID,
+                value=f'=IF($D{r}="","","{prefixo}-"&TEXT(ROW()-1,"0000"))',
+            )
+            ws.cell(row=r, column=COL_ALT_DATA).number_format = "DD/MM/YYYY"
+
+        # ID_Obra: sempre fórmula, linha literal ou não (mesmo padrão de Financeiro).
+        ws.cell(
+            row=r,
+            column=COL_ALT_ID_OBRA,
+            value=f'=IF($D{r}="","",Base_Dados!$B$2)',
+        )
+
+    # Dropdown "Tipo" — domínio fechado (Etapa 5).
+    dv_tipo = DataValidation(
+        type="list", formula1=_LISTA_TIPO_ALTERACAO, allow_blank=True,
+        showErrorMessage=True, errorTitle="Tipo inválido",
+        error="Selecione um dos tipos oficiais: " + ", ".join(_ROTULOS_TIPO_ALTERACAO) + ".",
+    )
+    ws.add_data_validation(dv_tipo)
+    dv_tipo.add(f"B2:B{ultima_linha}")
+
+    # Dropdown "Status de Aprovação" — domínio fechado (Etapa 5).
+    dv_status = DataValidation(
+        type="list", formula1=_LISTA_STATUS_APROVACAO, allow_blank=True,
+        showErrorMessage=True, errorTitle="Status inválido",
+        error="Selecione um dos status oficiais: " + ", ".join(_ROTULOS_STATUS_APROVACAO) + ".",
+    )
+    ws.add_data_validation(dv_status)
+    dv_status.add(f"G2:G{ultima_linha}")
+
+    # NENHUMA validação de sinal em Impacto no Orçamento/Prazo (Etapa 5,
+    # decisão homologada) — diferente de Financeiro!Valor (Etapa 4,
+    # Seção 21): aqui o sinal negativo é um dado válido (redução).
+
+    for r in range(2, ultima_linha + 1):
+        ws.cell(row=r, column=COL_ALT_IMPACTO_ORCAMENTO).number_format = FORMATO_MOEDA_BR
+
+    _aplicar_bordas(ws, ultima_linha, len(COLUNAS_ALTERACOES))
+    _aplicar_filtro_e_congelamento(ws, ultima_linha, len(COLUNAS_ALTERACOES))
 
 
 # --------------------------------------------------------------------

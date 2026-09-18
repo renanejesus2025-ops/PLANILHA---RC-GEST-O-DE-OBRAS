@@ -171,3 +171,64 @@ class StatusServico(str, Enum):
             StatusServico.RETIRADO_DO_ESCOPO,
             StatusServico.SUBSTITUIDO,
         }
+
+
+class TipoAlteracao(str, Enum):
+    """
+    Domínio fechado do "Tipo de Alteração" — [D] HOMOLOGADO na Etapa 5
+    (2026-09-17), fechando o que o DAD_001 registrava como lista
+    proposta ([P]), não homologada: Escopo, Prazo, Orçamento.
+
+    Qualquer Tipo pode ter Impacto no Orçamento preenchido — a soma no
+    Motor de Cálculos (`src/alteracoes/calculos.py`) é pelo VALOR do
+    campo "Impacto no Orçamento", não pelo Tipo em si (uma Alteração de
+    Escopo também pode ter impacto financeiro). Alterações de Escopo NÃO
+    disparam nenhuma automação sobre SERVIÇOS/ORÇAMENTO (Etapa 5,
+    decisão homologada) — ficam apenas registradas informativamente.
+    """
+
+    ESCOPO = "escopo"
+    PRAZO = "prazo"
+    ORCAMENTO = "orcamento"
+
+    @property
+    def rotulo(self) -> str:
+        rotulos = {
+            TipoAlteracao.ESCOPO: "Escopo",
+            TipoAlteracao.PRAZO: "Prazo",
+            TipoAlteracao.ORCAMENTO: "Orçamento",
+        }
+        return rotulos[self]
+
+
+class StatusAprovacaoAlteracao(str, Enum):
+    """
+    Domínio fechado do "Status de Aprovação" de ALTERAÇÕES — [D]
+    HOMOLOGADO na Etapa 5 (2026-09-17), fechando REG-012 (antes [H]:
+    "fluxo de aprovação não definido").
+
+    Decisão homologada: SEM workflow de aprovação multi-etapa — o
+    Operador seleciona o Status diretamente (mesmo princípio "sistema
+    informa, Operador decide" já usado em Financeiro/Etapa 4). Só
+    `APROVADA` integra o Orçamento Vigente (REG-017); `PENDENTE` e
+    `REJEITADA` permanecem visíveis na base, nunca apagados (mesmo
+    princípio de não-exclusão automática de `StatusServico`, Etapa 3).
+    """
+
+    PENDENTE = "pendente"
+    APROVADA = "aprovada"
+    REJEITADA = "rejeitada"
+
+    @property
+    def rotulo(self) -> str:
+        rotulos = {
+            StatusAprovacaoAlteracao.PENDENTE: "Pendente",
+            StatusAprovacaoAlteracao.APROVADA: "Aprovada",
+            StatusAprovacaoAlteracao.REJEITADA: "Rejeitada",
+        }
+        return rotulos[self]
+
+    @property
+    def integra_orcamento_vigente(self) -> bool:
+        """True somente para Aprovada (REG-017)."""
+        return self is StatusAprovacaoAlteracao.APROVADA

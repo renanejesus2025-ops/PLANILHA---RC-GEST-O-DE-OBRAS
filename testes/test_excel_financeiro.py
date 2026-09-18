@@ -212,13 +212,28 @@ def test_validacao_de_valor_em_financeiro_e_pagamentos_e_maior_ou_igual_a_zero(t
 # --------------------------------------------------------------------
 # Resumo Financeiro — fórmulas centrais (Seções 4/5/6/7/15)
 # --------------------------------------------------------------------
-def test_resumo_orcamento_vigente_soma_inicial_e_aportes(tmp_path):
+def test_resumo_orcamento_vigente_soma_inicial_aportes_e_alteracoes(tmp_path):
+    """REG-017 completo (Etapa 5): 3 parcelas — Orçamento Inicial + Aportes +
+    Alterações Aprovadas. A fórmula não é fixada literalmente aqui porque
+    depende de 3 números de linha que podem variar; verifica-se apenas que
+    ela referencia a linha de "Alterações Aprovadas" (por rótulo)."""
     caminho = tmp_path / "v.xlsx"
     construir_workbook(BaseDados()).save(caminho)
     ws = openpyxl.load_workbook(caminho)["Resumo Financeiro"]
-    assert ws.cell(row=2, column=2).value == "=Início!$B$8"
-    assert ws.cell(row=3, column=2).value.startswith("=SUM(Financeiro!$G$2:$G$")
-    assert ws.cell(row=4, column=2).value == "=B2+B3"
+    linhas_rotulo = {ws.cell(row=r, column=1).value: r for r in range(1, 20)}
+    linha_inicial = linhas_rotulo["Orçamento Inicial (Previsto)"]
+    linha_aportes = linhas_rotulo["Aportes"]
+    linha_alteracoes = linhas_rotulo["Alterações Aprovadas"]
+    linha_vigente = linhas_rotulo["Orçamento Vigente"]
+
+    assert ws.cell(row=linha_inicial, column=2).value == "=Início!$B$8"
+    assert ws.cell(row=linha_aportes, column=2).value.startswith("=SUM(Financeiro!$G$2:$G$")
+
+    formula_vigente = ws.cell(row=linha_vigente, column=2).value
+    assert formula_vigente.count("+") == 2  # 3 parcelas = 2 somas
+    assert f"B{linha_inicial}" in formula_vigente
+    assert f"B{linha_aportes}" in formula_vigente
+    assert f"B{linha_alteracoes}" in formula_vigente
 
 
 def test_resumo_percentual_consumido_trata_divisao_por_zero(tmp_path):
@@ -226,8 +241,12 @@ def test_resumo_percentual_consumido_trata_divisao_por_zero(tmp_path):
     caminho = tmp_path / "v.xlsx"
     construir_workbook(BaseDados()).save(caminho)
     ws = openpyxl.load_workbook(caminho)["Resumo Financeiro"]
-    formula = ws.cell(row=7, column=2).value
-    assert formula == '=IF(B4=0,"N/D",B5/B4)'
+    linhas_rotulo = {ws.cell(row=r, column=1).value: r for r in range(1, 20)}
+    linha_vigente = linhas_rotulo["Orçamento Vigente"]
+    linha_custo = linhas_rotulo["Custo Realizado"]
+    linha_percentual = linhas_rotulo["% Orçamento Consumido"]
+    formula = ws.cell(row=linha_percentual, column=2).value
+    assert formula == f'=IF(B{linha_vigente}=0,"N/D",B{linha_custo}/B{linha_vigente})'
 
 
 def test_resumo_saldo_de_caixa_nao_usa_custo_realizado_diretamente(tmp_path):
@@ -249,8 +268,9 @@ def test_resumo_estouro_de_orcamento_nao_bloqueia_apenas_informa(tmp_path):
     ws = openpyxl.load_workbook(caminho)["Resumo Financeiro"]
     linhas_rotulo = {ws.cell(row=r, column=1).value: r for r in range(1, 20)}
     linha_estouro = linhas_rotulo["Estouro de Orçamento (indicador Operador-only)"]
+    linha_saldo_orc = linhas_rotulo["Saldo Orçamentário"]
     formula = ws.cell(row=linha_estouro, column=2).value
-    assert formula == '=IF(B6<0,"SIM","NÃO")'
+    assert formula == f'=IF(B{linha_saldo_orc}<0,"SIM","NÃO")'
     assert len(ws.conditional_formatting._cf_rules) == 0
 
 

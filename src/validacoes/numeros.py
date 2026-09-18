@@ -37,3 +37,26 @@ def validar_numero_nao_negativo(valor: object, nome_campo: str) -> None:
         raise ErroValorNumericoInvalido(
             f"{nome_campo} não pode ser negativo; recebido: {valor}."
         )
+
+
+def validar_numero(valor: object, nome_campo: str) -> None:
+    """
+    Levanta `ErroValorNumericoInvalido` se `valor` não for None e não for
+    um número (`int`/`float`, excluindo `bool`) — mesma exclusão de tipo
+    de `validar_numero_nao_negativo`, mas SEM exigir não-negatividade.
+
+    Usado por campos que são deltas com sinal significativo (Etapa 5,
+    "Impacto no Orçamento"/"Impacto no Prazo" de ALTERAÇÕES) — uma
+    Alteração pode reduzir o orçamento ou antecipar um prazo, então o
+    sinal negativo é um dado válido, não um erro (diferente de
+    `Financeiro.valor`/`Pagamento.valor`, Etapa 4, Seção 21, cujo sinal é
+    dado pelo Tipo e por isso nunca pode ser negativo).
+
+    `None` é sempre aceito (campo ainda não preenchido).
+    """
+    if valor is None:
+        return
+    if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+        raise ErroValorNumericoInvalido(
+            f"{nome_campo} deve ser numérico; recebido: {valor!r}."
+        )
