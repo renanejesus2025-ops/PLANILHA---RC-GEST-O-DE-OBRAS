@@ -22,6 +22,9 @@ htmlcov/
 # VS Code
 .vscode/
 
+# Claude Code (configuração local da ferramenta)
+.claude/
+
 # Sistema operacional
 .DS_Store
 Thumbs.db
