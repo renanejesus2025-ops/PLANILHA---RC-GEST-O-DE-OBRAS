@@ -17,6 +17,14 @@ foram **derivados** dessa regra explícita (3 letras maiúsculas, sem
 colisão com os demais 11) — isto é uma aplicação da regra dada, não uma
 regra de negócio nova. Recomenda-se confirmar esses dois prefixos
 formalmente na próxima atualização do DAD_001 (ver relatório da Etapa 1).
+
+PAGAMENTOS (prefixo PGT) foi **derivado** pelo mesmo princípio na Etapa 4
+(Seção 19/20 do prompt de homologação "FINANCEIRO — ETAPA 4",
+2026-09-17): a entidade PAGAMENTOS é nova nesta etapa (separa a baixa
+financeira do reconhecimento do Custo Realizado em FINANCEIRO) e não
+constava da lista literal de nenhuma homologação anterior — mesma lógica
+de derivação já aplicada a PLN/FOR, sem colisão com os 13 prefixos
+existentes.
 """
 
 from __future__ import annotations
@@ -38,6 +46,7 @@ PREFIXOS_ID: Final[dict[str, str]] = {
     "PENDENCIAS": "PEN",
     "ATUALIZACOES": "ATU",
     "DOCUMENTOS": "DOC",
+    "PAGAMENTOS": "PGT",  # derivado na Etapa 4 — ver docstring acima
 }
 
 # Largura mínima do sequencial numérico do ID (ex.: 4 -> "0001").

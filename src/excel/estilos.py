@@ -1,5 +1,6 @@
 """
-Estilos visuais mínimos para o workbook gerado na Etapa 2.
+Estilos visuais mínimos para o workbook gerado na Etapa 2, estendidos na
+Etapa 4 (formato de moeda brasileira, ver `FORMATO_MOEDA_BR`).
 
 Usa SOMENTE as 4 cores oficiais da marca, já transcritas em
 `03_DESIGN_E_IDENTIDADE_VISUAL/DSG_001_...md` Seção A.5 (nenhuma cor foi
@@ -39,3 +40,14 @@ FONTE_ROTULO_FORM = Font(bold=True, color=CINZA_ESVERDEADO_ESCURO)
 # isto é calculado por fórmula".
 PREENCHIMENTO_CALCULADO = PatternFill("solid", fgColor=CINZA_AZULADO_CLARO)
 FONTE_CALCULADA = Font(italic=True, color=CINZA_ESVERDEADO_ESCURO)
+
+# Formatação monetária brasileira ("R$ 0,00") — Etapa 4, Seção 27,
+# exigência explícita e literal desta homologação. Usada apenas nas
+# abas novas desta etapa (Financeiro/Pagamentos/Resumo Financeiro); as
+# colunas monetárias das Etapas 2/3 (Etapas/Subetapas/Serviços/Início)
+# continuam com o formato "#,##0.00" já testado/homologado nessas
+# etapas — não foram alteradas retroativamente (fora do escopo desta
+# etapa, ver relatório da Etapa 4, Limitações). Os separadores de milhar/
+# decimal exibidos seguem a configuração regional do Excel do usuário —
+# o literal "R$" é a única parte fixa deste formato.
+FORMATO_MOEDA_BR = '"R$" #,##0.00'

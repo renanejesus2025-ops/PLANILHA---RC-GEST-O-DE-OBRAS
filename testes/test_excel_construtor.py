@@ -44,7 +44,21 @@ from src.excel.construtor_workbook import (
 from src.ids.gerador_id import eh_formato_de_id
 from src.modelo.entidades import Etapa, Obra, ServicoOrcamento, Subetapa
 
-ABAS_ESPERADAS = ["Início", "Etapas", "Subetapas", "Serviços", "Base_Dados"]
+ABAS_ESPERADAS = [
+    "Início",
+    "Etapas",
+    "Subetapas",
+    "Serviços",
+    "Financeiro",
+    "Pagamentos",
+    "Resumo Financeiro",
+    "Base_Dados",
+]
+# ^ Atualizado na Etapa 4 (Financeiro) — 3 abas novas ("Financeiro",
+# "Pagamentos", "Resumo Financeiro") acrescentadas entre "Serviços" e
+# "Base_Dados"; nenhuma aba da Etapa 2/3 foi removida ou renomeada.
+# Mesmo tipo de ajuste já registrado na Etapa 3 para `test_entidades.py`/
+# `test_excel_construtor.py` (relatório da Etapa 3, Seção 3).
 
 
 def _construir_base_de_exemplo() -> BaseDados:

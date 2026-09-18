@@ -69,10 +69,11 @@ from src.excel.estilos import (
     FONTE_CABECALHO,
     FONTE_CALCULADA,
     FONTE_ROTULO_FORM,
+    FORMATO_MOEDA_BR,
     PREENCHIMENTO_CABECALHO,
     PREENCHIMENTO_CALCULADO,
 )
-from src.modelo.enums import StatusServico
+from src.modelo.enums import StatusServico, TipoLancamentoFinanceiro
 
 # Linhas em branco pré-formatadas (fórmulas de ID/vínculo já ativas),
 # prontas para uso direto no Excel sem dado nenhum inventado.
@@ -126,6 +127,53 @@ COL_SRV_VARIACAO = 11
 COL_SRV_STATUS = 12
 COL_SRV_ID_SUBETAPA = 13
 
+# --------------------------------------------------------------------
+# Etapa 4 — colunas das abas Financeiro e Pagamentos
+# --------------------------------------------------------------------
+COLUNAS_FINANCEIRO = [
+    ("ID (técnico)", 14, True, False),      # A
+    ("Tipo", 20, False, False),             # B
+    ("Data", 14, False, False),             # C
+    ("Descrição", 34, False, False),        # D
+    ("Valor", 16, False, False),            # E
+    ("Entrada/Saída", 26, False, True),     # F
+    ("Aporte", 16, False, True),            # G
+    ("Custo Realizado", 18, False, True),   # H
+    ("Total Pago", 16, False, True),        # I
+    ("A Pagar", 16, False, True),           # J
+    ("Situação", 18, False, False),         # K
+    ("Observação", 30, False, False),       # L
+    ("ID_Obra (técnico)", 16, True, False), # M
+]
+COL_FIN_ID = 1
+COL_FIN_TIPO = 2
+COL_FIN_DATA = 3
+COL_FIN_DESCRICAO = 4
+COL_FIN_VALOR = 5
+COL_FIN_ENTRADA_SAIDA = 6
+COL_FIN_APORTE = 7
+COL_FIN_CUSTO_REALIZADO = 8
+COL_FIN_TOTAL_PAGO = 9
+COL_FIN_A_PAGAR = 10
+COL_FIN_SITUACAO = 11
+COL_FIN_OBSERVACAO = 12
+COL_FIN_ID_OBRA = 13
+
+COLUNAS_PAGAMENTOS = [
+    ("ID (técnico)", 14, True, False),                # A
+    ("Lançamento (Despesa/Custo)", 34, False, False),  # B
+    ("Data do Pagamento", 16, False, False),           # C
+    ("Valor Pago", 16, False, False),                  # D
+    ("Observação", 30, False, False),                  # E
+    ("ID_Financeiro (técnico)", 18, True, False),       # F
+]
+COL_PAG_ID = 1
+COL_PAG_LANCAMENTO = 2
+COL_PAG_DATA = 3
+COL_PAG_VALOR = 4
+COL_PAG_OBSERVACAO = 5
+COL_PAG_ID_FINANCEIRO = 6
+
 COL_SUB_ID = 1
 COL_SUB_NOME = 2
 COL_SUB_ETAPA = 3
@@ -142,6 +190,7 @@ COL_ETA_TOTAL = 6
 
 NOME_INTERVALO_ETAPAS = "Lista_Etapas"
 NOME_INTERVALO_SUBETAPAS = "Lista_Subetapas"
+NOME_INTERVALO_FINANCEIRO_DESCRICOES = "Lista_Financeiro_Descricoes"  # Etapa 4
 
 # Lista fechada do Status do Serviço (Etapa 3, Seção 18) — mesma fonte
 # (`StatusServico`) usada pelo Python, nunca digitada de novo à mão.
@@ -150,6 +199,15 @@ _LISTA_STATUS_SERVICO = '"' + ",".join(_ROTULOS_STATUS_SERVICO) + '"'
 _ROTULO_CANCELADO = StatusServico.CANCELADO.rotulo
 _ROTULO_RETIRADO = StatusServico.RETIRADO_DO_ESCOPO.rotulo
 _ROTULO_SUBSTITUIDO = StatusServico.SUBSTITUIDO.rotulo
+
+# Lista fechada do Tipo de FINANCEIRO (Etapa 4, Seção 8) — mesma fonte
+# (`TipoLancamentoFinanceiro`) usada pelo Python.
+_ROTULOS_TIPO_FINANCEIRO = [t.rotulo for t in TipoLancamentoFinanceiro]
+_LISTA_TIPO_FINANCEIRO = '"' + ",".join(_ROTULOS_TIPO_FINANCEIRO) + '"'
+_ROTULO_APORTE = TipoLancamentoFinanceiro.APORTE.rotulo
+_ROTULO_OUTRAS_ENTRADAS = TipoLancamentoFinanceiro.OUTRAS_ENTRADAS.rotulo
+_ROTULO_DESPESA = TipoLancamentoFinanceiro.DESPESA.rotulo
+_ROTULO_OUTRAS_SAIDAS = TipoLancamentoFinanceiro.OUTRAS_SAIDAS.rotulo
 
 
 def construir_workbook(base: BaseDados | None = None) -> Workbook:
@@ -170,6 +228,9 @@ def construir_workbook(base: BaseDados | None = None) -> Workbook:
     etapas = list(base.etapas.values())
     ultima_linha_etapas = 1 + len(etapas) + LINHAS_MODELO
 
+    financeiro = list(base.financeiro.values())
+    ultima_linha_financeiro = 1 + len(financeiro) + LINHAS_MODELO
+
     wb = Workbook()
     wb.remove(wb.active)  # remove a aba padrão "Sheet"
 
@@ -177,8 +238,11 @@ def construir_workbook(base: BaseDados | None = None) -> Workbook:
     _construir_aba_etapas(wb, etapas, id_obra=id_obra)
     _construir_aba_subetapas(wb, list(base.subetapas.values()), base.etapas)
     _construir_aba_servicos(wb, list(base.servicos.values()), base.subetapas)
+    _construir_aba_financeiro(wb, financeiro)
+    _construir_aba_pagamentos(wb, list(base.pagamentos.values()), base.financeiro)
+    _construir_aba_resumo_financeiro(wb, ultima_linha_financeiro=ultima_linha_financeiro)
     _construir_aba_base_dados(wb, id_obra=id_obra)
-    _criar_intervalos_nomeados(wb)
+    _criar_intervalos_nomeados(wb, ultima_linha_financeiro=ultima_linha_financeiro)
 
     wb.active = 0  # abre na aba "Início"
     return wb
@@ -525,6 +589,326 @@ def _construir_aba_servicos(wb: Workbook, servicos: list, subetapas_por_id: dict
 
 
 # --------------------------------------------------------------------
+# Aba: Financeiro (Etapa 4) — Aporte / Outras Entradas / Despesa-Custo /
+# Outras Saídas (Seções 8/19/27)
+# --------------------------------------------------------------------
+def _construir_aba_financeiro(wb: Workbook, lancamentos: list) -> None:
+    ws = wb.create_sheet("Financeiro")
+    _escrever_cabecalho(ws, COLUNAS_FINANCEIRO)
+
+    ultima_linha = 1 + len(lancamentos) + LINHAS_MODELO
+    prefixo = PREFIXOS_ID["FINANCEIRO"]
+
+    letra_tipo = get_column_letter(COL_FIN_TIPO)
+    letra_valor = get_column_letter(COL_FIN_VALOR)
+    letra_custo = get_column_letter(COL_FIN_CUSTO_REALIZADO)
+    letra_pago = get_column_letter(COL_FIN_TOTAL_PAGO)
+    letra_id = get_column_letter(COL_FIN_ID)
+
+    for r in range(2, ultima_linha + 1):
+        indice = r - 2
+        if indice < len(lancamentos):
+            lancamento = lancamentos[indice]
+            ws.cell(row=r, column=COL_FIN_ID, value=lancamento.id)
+            ws.cell(row=r, column=COL_FIN_TIPO, value=lancamento.tipo.rotulo)
+            celula_data = ws.cell(row=r, column=COL_FIN_DATA, value=lancamento.data)
+            celula_data.number_format = "DD/MM/YYYY"
+            ws.cell(row=r, column=COL_FIN_DESCRICAO, value=lancamento.descricao)
+            ws.cell(row=r, column=COL_FIN_VALOR, value=lancamento.valor)
+            ws.cell(row=r, column=COL_FIN_SITUACAO, value=lancamento.situacao)
+            ws.cell(row=r, column=COL_FIN_OBSERVACAO, value=lancamento.observacao)
+        else:
+            ws.cell(
+                row=r,
+                column=COL_FIN_ID,
+                value=f'=IF($B{r}="","","{prefixo}-"&TEXT(ROW()-1,"0000"))',
+            )
+            ws.cell(row=r, column=COL_FIN_DATA).number_format = "DD/MM/YYYY"
+
+        # Colunas SEMPRE calculadas por fórmula (linha literal ou não) —
+        # mesmo raciocínio da aba Serviços (Etapa 3): continuam corretas
+        # se o Operador editar Tipo/Valor diretamente no Excel depois.
+        ws.cell(
+            row=r,
+            column=COL_FIN_ENTRADA_SAIDA,
+            value=(
+                f'=IF(${letra_tipo}{r}="","",'
+                f'IF(${letra_tipo}{r}="{_ROTULO_APORTE}","Entrada",'
+                f'IF(${letra_tipo}{r}="{_ROTULO_OUTRAS_ENTRADAS}","Entrada",'
+                f'IF(${letra_tipo}{r}="{_ROTULO_OUTRAS_SAIDAS}","Saída",'
+                f'"Custo (Caixa só no Pagamento)"))))'
+            ),
+        )
+        ws.cell(
+            row=r,
+            column=COL_FIN_APORTE,
+            value=f'=IF(${letra_tipo}{r}="{_ROTULO_APORTE}",${letra_valor}{r},"")',
+        )
+        ws.cell(
+            row=r,
+            column=COL_FIN_CUSTO_REALIZADO,
+            value=f'=IF(${letra_tipo}{r}="{_ROTULO_DESPESA}",${letra_valor}{r},"")',
+        )
+        ws.cell(
+            row=r,
+            column=COL_FIN_TOTAL_PAGO,
+            value=(
+                f'=IF(${letra_tipo}{r}="{_ROTULO_DESPESA}",'
+                f'SUMIFS(Pagamentos!${get_column_letter(COL_PAG_VALOR)}:${get_column_letter(COL_PAG_VALOR)},'
+                f'Pagamentos!${get_column_letter(COL_PAG_ID_FINANCEIRO)}:${get_column_letter(COL_PAG_ID_FINANCEIRO)},'
+                f'${letra_id}{r}),"")'
+            ),
+        )
+        ws.cell(
+            row=r,
+            column=COL_FIN_A_PAGAR,
+            value=f'=IF(${letra_tipo}{r}="{_ROTULO_DESPESA}",${letra_custo}{r}-${letra_pago}{r},"")',
+        )
+        ws.cell(
+            row=r,
+            column=COL_FIN_ID_OBRA,
+            value=f'=IF(${letra_tipo}{r}="","",Base_Dados!$B$2)',
+        )
+
+    # Dropdown "Tipo" — domínio fechado homologado na Etapa 4 (Seção 8).
+    dv_tipo = DataValidation(
+        type="list",
+        formula1=_LISTA_TIPO_FINANCEIRO,
+        allow_blank=True,
+        showErrorMessage=True,
+        errorTitle="Tipo inválido",
+        error="Selecione um dos tipos oficiais: " + ", ".join(_ROTULOS_TIPO_FINANCEIRO) + ".",
+    )
+    ws.add_data_validation(dv_tipo)
+    dv_tipo.add(f"B2:B{ultima_linha}")
+
+    # Valor: numérico e não negativo — o sinal vem do Tipo (Seção 21).
+    dv_valor = DataValidation(
+        type="decimal",
+        operator="greaterThanOrEqual",
+        formula1="0",
+        allow_blank=True,
+        showErrorMessage=True,
+        errorTitle="Valor inválido",
+        error="Informe um número maior ou igual a zero.",
+    )
+    ws.add_data_validation(dv_valor)
+    dv_valor.add(f"E2:E{ultima_linha}")
+
+    for r in range(2, ultima_linha + 1):
+        for coluna in (
+            COL_FIN_VALOR,
+            COL_FIN_APORTE,
+            COL_FIN_CUSTO_REALIZADO,
+            COL_FIN_TOTAL_PAGO,
+            COL_FIN_A_PAGAR,
+        ):
+            ws.cell(row=r, column=coluna).number_format = FORMATO_MOEDA_BR
+
+    for indice_coluna, (_titulo, _largura, _oculta, calculada) in enumerate(COLUNAS_FINANCEIRO, start=1):
+        if not calculada:
+            continue
+        for r in range(2, ultima_linha + 1):
+            celula = ws.cell(row=r, column=indice_coluna)
+            celula.fill = PREENCHIMENTO_CALCULADO
+            celula.font = FONTE_CALCULADA
+
+    _aplicar_bordas(ws, ultima_linha, len(COLUNAS_FINANCEIRO))
+    _aplicar_filtro_e_congelamento(ws, ultima_linha, len(COLUNAS_FINANCEIRO))
+
+
+# --------------------------------------------------------------------
+# Aba: Pagamentos (Etapa 4, Seção 20) — separada de Financeiro
+# --------------------------------------------------------------------
+def _construir_aba_pagamentos(wb: Workbook, pagamentos: list, financeiro_por_id: dict) -> None:
+    ws = wb.create_sheet("Pagamentos")
+    _escrever_cabecalho(ws, COLUNAS_PAGAMENTOS)
+
+    ultima_linha = 1 + len(pagamentos) + LINHAS_MODELO
+    prefixo = PREFIXOS_ID["PAGAMENTOS"]
+
+    letra_lancamento = get_column_letter(COL_PAG_LANCAMENTO)
+
+    for r in range(2, ultima_linha + 1):
+        indice = r - 2
+        if indice < len(pagamentos):
+            pagamento = pagamentos[indice]
+            lancamento = financeiro_por_id.get(pagamento.id_financeiro)
+            ws.cell(row=r, column=COL_PAG_ID, value=pagamento.id)
+            ws.cell(row=r, column=COL_PAG_LANCAMENTO, value=getattr(lancamento, "descricao", None))
+            celula_data = ws.cell(row=r, column=COL_PAG_DATA, value=pagamento.data)
+            celula_data.number_format = "DD/MM/YYYY"
+            ws.cell(row=r, column=COL_PAG_VALOR, value=pagamento.valor)
+            ws.cell(row=r, column=COL_PAG_OBSERVACAO, value=pagamento.observacao)
+        else:
+            ws.cell(
+                row=r,
+                column=COL_PAG_ID,
+                value=f'=IF($B{r}="","","{prefixo}-"&TEXT(ROW()-1,"0000"))',
+            )
+            ws.cell(row=r, column=COL_PAG_DATA).number_format = "DD/MM/YYYY"
+
+        # Vínculo técnico SEMPRE por fórmula (linha literal ou não) — mesmo
+        # padrão de Subetapas/Serviços (Etapa 2/3): resolve pelo nome
+        # amigável (Descrição do lançamento) escolhido no dropdown, nunca
+        # por um ID digitado. Mesma limitação já documentada nas Etapas
+        # anteriores para nomes duplicados (ver relatório da Etapa 4).
+        ws.cell(
+            row=r,
+            column=COL_PAG_ID_FINANCEIRO,
+            value=(
+                f'=IF(${letra_lancamento}{r}="","",'
+                f'INDEX(Financeiro!$A:$A,MATCH(${letra_lancamento}{r},Financeiro!$D:$D,0)))'
+            ),
+        )
+
+    # Dropdown "Lançamento" — nomes amigáveis (Descrição), nunca IDs.
+    dv_lancamento = DataValidation(
+        type="list",
+        formula1=NOME_INTERVALO_FINANCEIRO_DESCRICOES,
+        allow_blank=True,
+        showErrorMessage=True,
+        errorTitle="Lançamento inválido",
+        error="Selecione um lançamento já cadastrado na aba Financeiro.",
+    )
+    ws.add_data_validation(dv_lancamento)
+    dv_lancamento.add(f"B2:B{ultima_linha}")
+
+    dv_valor = DataValidation(
+        type="decimal",
+        operator="greaterThanOrEqual",
+        formula1="0",
+        allow_blank=True,
+        showErrorMessage=True,
+        errorTitle="Valor inválido",
+        error="Informe um número maior ou igual a zero.",
+    )
+    ws.add_data_validation(dv_valor)
+    dv_valor.add(f"D2:D{ultima_linha}")
+
+    for r in range(2, ultima_linha + 1):
+        ws.cell(row=r, column=COL_PAG_VALOR).number_format = FORMATO_MOEDA_BR
+
+    _aplicar_bordas(ws, ultima_linha, len(COLUNAS_PAGAMENTOS))
+    _aplicar_filtro_e_congelamento(ws, ultima_linha, len(COLUNAS_PAGAMENTOS))
+
+
+# --------------------------------------------------------------------
+# Aba: Resumo Financeiro (Etapa 4, Seção 28) — resumo OPERACIONAL, não o
+# Dashboard Gerencial definitivo (Seção 28/30)
+# --------------------------------------------------------------------
+def _construir_aba_resumo_financeiro(wb: Workbook, *, ultima_linha_financeiro: int) -> None:
+    ws = wb.create_sheet("Resumo Financeiro")
+    ws.sheet_view.showGridLines = False
+    ws.column_dimensions["A"].width = 34
+    ws.column_dimensions["B"].width = 22
+
+    titulo = ws.cell(row=1, column=1, value="Resumo Financeiro")
+    titulo.font = FONTE_CABECALHO
+    titulo.fill = PREENCHIMENTO_CABECALHO
+    ws.cell(row=1, column=2).fill = PREENCHIMENTO_CABECALHO
+    ws.row_dimensions[1].height = 24
+
+    letra_g = get_column_letter(COL_FIN_APORTE)
+    letra_h = get_column_letter(COL_FIN_CUSTO_REALIZADO)
+    letra_i = get_column_letter(COL_FIN_TOTAL_PAGO)
+    letra_j = get_column_letter(COL_FIN_A_PAGAR)
+    letra_b_tipo = get_column_letter(COL_FIN_TIPO)
+    letra_e_valor = get_column_letter(COL_FIN_VALOR)
+    ul = ultima_linha_financeiro
+
+    linhas_moeda: list[int] = []
+
+    def _linha(rotulo: str, formula_ou_valor, *, moeda: bool = True) -> None:
+        nonlocal linha_atual
+        ws.cell(row=linha_atual, column=1, value=rotulo).font = FONTE_ROTULO_FORM
+        celula = ws.cell(row=linha_atual, column=2, value=formula_ou_valor)
+        celula.border = BORDA_CELULA
+        celula.fill = PREENCHIMENTO_CALCULADO
+        celula.font = FONTE_CALCULADA
+        if moeda:
+            linhas_moeda.append(linha_atual)
+        linha_atual += 1
+
+    linha_atual = 2
+    linha_orcamento_inicial = linha_atual
+    _linha("Orçamento Inicial (Previsto)", "=Início!$B$8")
+    linha_aportes = linha_atual
+    _linha("Aportes", f"=SUM(Financeiro!${letra_g}$2:${letra_g}${ul})")
+    linha_orcamento_vigente = linha_atual
+    _linha("Orçamento Vigente", f"=B{linha_orcamento_inicial}+B{linha_aportes}")
+    linha_custo = linha_atual
+    _linha("Custo Realizado", f"=SUM(Financeiro!${letra_h}$2:${letra_h}${ul})")
+    linha_saldo_orc = linha_atual
+    _linha("Saldo Orçamentário", f"=B{linha_orcamento_vigente}-B{linha_custo}")
+    _linha(
+        "% Orçamento Consumido",
+        f'=IF(B{linha_orcamento_vigente}=0,"N/D",B{linha_custo}/B{linha_orcamento_vigente})',
+        moeda=False,
+    )
+    linha_percentual = linha_atual - 1
+    linha_outras_entradas = linha_atual
+    _linha(
+        "Outras Entradas",
+        f'=SUMIF(Financeiro!${letra_b_tipo}$2:${letra_b_tipo}${ul},"{_ROTULO_OUTRAS_ENTRADAS}",'
+        f'Financeiro!${letra_e_valor}$2:${letra_e_valor}${ul})',
+    )
+    linha_outras_saidas = linha_atual
+    _linha(
+        "Outras Saídas",
+        f'=SUMIF(Financeiro!${letra_b_tipo}$2:${letra_b_tipo}${ul},"{_ROTULO_OUTRAS_SAIDAS}",'
+        f'Financeiro!${letra_e_valor}$2:${letra_e_valor}${ul})',
+    )
+    linha_total_entradas = linha_atual
+    _linha("Total de Entradas", f"=B{linha_aportes}+B{linha_outras_entradas}")
+    linha_total_pago = linha_atual
+    _linha("Total Pago", f"=SUM(Financeiro!${letra_i}$2:${letra_i}${ul})")
+    linha_total_saidas = linha_atual
+    _linha("Total de Saídas", f"=B{linha_total_pago}+B{linha_outras_saidas}")
+    linha_saldo_caixa = linha_atual
+    _linha("Saldo de Caixa", f"=B{linha_total_entradas}-B{linha_total_saidas}")
+    _linha("Total A Pagar", f"=SUM(Financeiro!${letra_j}$2:${letra_j}${ul})")
+    linha_estouro = linha_atual
+    _linha(
+        "Estouro de Orçamento (indicador Operador-only)",
+        f'=IF(B{linha_saldo_orc}<0,"SIM","NÃO")',
+        moeda=False,
+    )
+
+    for linha in linhas_moeda:
+        ws.cell(row=linha, column=2).number_format = FORMATO_MOEDA_BR
+    ws.cell(row=linha_percentual, column=2).number_format = "0.00%"
+
+    # Notas — pendências explícitas (Etapa 4, Seções 4/29/30), texto
+    # simples (não fórmula), sem cor/alerta (mesmo princípio da Seção 31
+    # da Etapa 3: nenhuma formatação condicional foi criada).
+    linha_atual += 1
+    nota1 = ws.cell(
+        row=linha_atual,
+        column=1,
+        value=(
+            "Nota: Alterações Aprovadas ainda não integradas (Seção 4) — "
+            "Orçamento Vigente considera apenas Orçamento Inicial + Aportes."
+        ),
+    )
+    nota1.font = FONTE_CALCULADA
+    ws.merge_cells(start_row=linha_atual, start_column=1, end_row=linha_atual, end_column=2)
+    linha_atual += 1
+    nota2 = ws.cell(
+        row=linha_atual,
+        column=1,
+        value=(
+            "Nota: 'Estouro de Orçamento' é Operador-only por especificação (Seções 29/30) — "
+            "o mecanismo técnico de restrição por perfil ainda não existe (SEC_001, [H])."
+        ),
+    )
+    nota2.font = FONTE_CALCULADA
+    ws.merge_cells(start_row=linha_atual, start_column=1, end_row=linha_atual, end_column=2)
+
+    ws.freeze_panes = "A2"
+
+
+# --------------------------------------------------------------------
 # Aba técnica oculta: Base_Dados
 # --------------------------------------------------------------------
 def _construir_aba_base_dados(wb: Workbook, *, id_obra: str) -> None:
@@ -569,16 +953,24 @@ def _construir_aba_base_dados(wb: Workbook, *, id_obra: str) -> None:
 # --------------------------------------------------------------------
 # Intervalos nomeados (fonte dos dropdowns amigáveis)
 # --------------------------------------------------------------------
-def _criar_intervalos_nomeados(wb: Workbook) -> None:
+def _criar_intervalos_nomeados(wb: Workbook, *, ultima_linha_financeiro: int) -> None:
     """
-    Intervalos Nomeados para as colunas "Nome" de Etapas/Subetapas — ver
-    docstring equivalente na versão da Etapa 2. Mantido sem alteração.
+    Intervalos Nomeados para as colunas "Nome"/"Descrição" que alimentam
+    dropdowns amigáveis — ver docstring equivalente na versão da Etapa 2.
+    Etapas/Subetapas mantidos sem alteração; `NOME_INTERVALO_FINANCEIRO_
+    DESCRICOES` é novo na Etapa 4 (fonte do dropdown "Lançamento" da aba
+    Pagamentos).
     """
     wb.defined_names[NOME_INTERVALO_ETAPAS] = DefinedName(
         NOME_INTERVALO_ETAPAS, attr_text="Etapas!$B$2:$B$1000"
     )
     wb.defined_names[NOME_INTERVALO_SUBETAPAS] = DefinedName(
         NOME_INTERVALO_SUBETAPAS, attr_text="Subetapas!$B$2:$B$1000"
+    )
+    letra_descricao = get_column_letter(COL_FIN_DESCRICAO)
+    wb.defined_names[NOME_INTERVALO_FINANCEIRO_DESCRICOES] = DefinedName(
+        NOME_INTERVALO_FINANCEIRO_DESCRICOES,
+        attr_text=f"Financeiro!${letra_descricao}$2:${letra_descricao}${ultima_linha_financeiro}",
     )
 
 

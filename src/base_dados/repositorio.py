@@ -1,23 +1,29 @@
 """
-Base de Dados em memória — fundação técnica (Etapa 1).
+Base de Dados em memória — fundação técnica (Etapa 1), estendida na
+Etapa 4 (Financeiro) com a entidade PAGAMENTOS.
 
-`BaseDados` mantém as 13 entidades do DAD_001 para UMA obra (1 arquivo
-Excel = 1 obra, Seção 5 da homologação desta etapa) e garante, em cada
-inserção:
+`BaseDados` mantém as 14 entidades do DAD_001 (13 da Etapa 1 + PAGAMENTOS,
+novo na Etapa 4) para UMA obra (1 arquivo Excel = 1 obra, Seção 5 da
+homologação da Etapa 1) e garante, em cada inserção:
 
 - unicidade de ID (REG-001/teste 2);
 - existência da referência (FK) apontada (REG-002, teste 5/7);
 - respeito à hierarquia oficial OBRA → ETAPA → SUBETAPA → SERVIÇO
-  (REG-019, teste 6).
+  (REG-019, teste 6);
+- (Etapa 4) um PAGAMENTO só referencia um lançamento FINANCEIRO do tipo
+  Despesa/Custo (Seções 13/14/20).
 
-Não implementa o Motor de Cálculos (peso automático, % de execução
-consolidado, saldo orçamentário etc.) — isso pertence a uma camada
-arquitetural separada (AGENTS.md §9, item 3), fora do escopo desta etapa.
+Não implementa o Motor de Cálculos de execução física (peso automático,
+% de execução consolidado etc.) — isso pertence a uma camada
+arquitetural separada (AGENTS.md §9, item 3), fora do escopo desta
+etapa. O Motor de Cálculos FINANCEIRO (Orçamento Vigente, Saldo
+Orçamentário, % Consumido, Saldo de Caixa, A Pagar) vive em
+`src/financeiro/calculos.py` (Etapa 4).
 """
 
 from __future__ import annotations
 
-from src.excecoes import ErroIdDuplicado, ErroReferenciaInvalida
+from src.excecoes import ErroIdDuplicado, ErroPagamentoDeTipoInvalido, ErroReferenciaInvalida
 from src.ids.gerador_id import GeradorId
 from src.modelo.entidades import (
     Alteracao,
@@ -29,11 +35,13 @@ from src.modelo.entidades import (
     Financeiro,
     Fornecedor,
     Obra,
+    Pagamento,
     Pendencia,
     Planejamento,
     ServicoOrcamento,
     Subetapa,
 )
+from src.modelo.enums import TipoLancamentoFinanceiro
 
 
 class BaseDados:
@@ -49,6 +57,7 @@ class BaseDados:
         self.fornecedores: dict[str, Fornecedor] = {}
         self.compras: dict[str, Compra] = {}
         self.financeiro: dict[str, Financeiro] = {}
+        self.pagamentos: dict[str, Pagamento] = {}
         self.execucoes: dict[str, ExecucaoMedicao] = {}
         self.alteracoes: dict[str, Alteracao] = {}
         self.pendencias: dict[str, Pendencia] = {}
@@ -133,7 +142,7 @@ class BaseDados:
         self._registrar(self.compras, compra)
         return compra
 
-    # -- Financeiro (depende de Obra; Serviço vinculado opcional, REG-021) --
+    # -- Financeiro (depende de Obra; Serviço/Fornecedor/Compra opcionais) --
     def adicionar_financeiro(self, lancamento: Financeiro) -> Financeiro:
         if lancamento.id_obra not in self.obras:
             raise ErroReferenciaInvalida(
@@ -148,8 +157,35 @@ class BaseDados:
                 f"Financeiro '{lancamento.id}' referencia Serviço inexistente "
                 f"'{lancamento.id_servico_vinculado}'."
             )
+        if lancamento.id_fornecedor is not None and lancamento.id_fornecedor not in self.fornecedores:
+            raise ErroReferenciaInvalida(
+                f"Financeiro '{lancamento.id}' referencia Fornecedor inexistente "
+                f"'{lancamento.id_fornecedor}'."
+            )
+        if lancamento.id_compra is not None and lancamento.id_compra not in self.compras:
+            raise ErroReferenciaInvalida(
+                f"Financeiro '{lancamento.id}' referencia Compra inexistente "
+                f"'{lancamento.id_compra}'."
+            )
         self._registrar(self.financeiro, lancamento)
         return lancamento
+
+    # -- Pagamento (depende de Financeiro do tipo Despesa/Custo, Etapa 4 Seção 20) --
+    def adicionar_pagamento(self, pagamento: Pagamento) -> Pagamento:
+        lancamento = self.financeiro.get(pagamento.id_financeiro)
+        if lancamento is None:
+            raise ErroReferenciaInvalida(
+                f"Pagamento '{pagamento.id}' referencia lançamento financeiro "
+                f"inexistente '{pagamento.id_financeiro}'."
+            )
+        if lancamento.tipo is not TipoLancamentoFinanceiro.DESPESA:
+            raise ErroPagamentoDeTipoInvalido(
+                f"Pagamento '{pagamento.id}' só pode referenciar um lançamento do "
+                f"tipo 'Despesa/Custo' (Etapa 4, Seções 13/14/20); o lançamento "
+                f"'{pagamento.id_financeiro}' é do tipo '{lancamento.tipo.rotulo}'."
+            )
+        self._registrar(self.pagamentos, pagamento)
+        return pagamento
 
     # -- Execução/Medição (depende de Serviço) -------------------------------
     def adicionar_execucao(self, execucao: ExecucaoMedicao) -> ExecucaoMedicao:

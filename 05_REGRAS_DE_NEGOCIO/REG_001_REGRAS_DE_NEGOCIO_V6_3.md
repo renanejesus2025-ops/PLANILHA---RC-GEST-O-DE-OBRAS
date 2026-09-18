@@ -1,4 +1,4 @@
-# Regras de Negócio — V6.3 (Revisão 6 — Orçamento dos Serviços)
+# Regras de Negócio — V6.3 (Revisão 7 — Financeiro)
 
 **Data da revisão:** 2026-09-16
 **Motivo da Revisão 1:** `AUDITORIA_PRE_CONSTRUCAO_V1` identificou que nenhuma regra tinha threshold, fórmula ou fluxo documentado além do nome do tema. A Revisão 1 substituiu a versão anterior (3 linhas) por regras formalizadas com ID.
@@ -7,6 +7,7 @@
 **Motivo da Revisão 4:** o responsável pelo projeto homologou o **MODELO HÍBRIDO de cálculo do progresso físico**: (a) o % de execução de cada Serviço pode ser apurado por medição quantitativa ou por status/conclusão, conforme a natureza do serviço; (b) o peso de cada Serviço na consolidação é calculado **automaticamente** a partir do seu Valor Orçado; (c) a consolidação segue a hierarquia SERVIÇO → SUBETAPA → ETAPA → OBRA usando esses pesos automáticos; (d) o ajuste manual de peso é admitido apenas como exceção, com rastreabilidade; (e) aporte financeiro **não** altera automaticamente o peso físico. Esta revisão reescreve REG-007 e REG-008 (antes [H]) e adiciona REG-020 e REG-021. Não foram criados thresholds, domínios fechados ou regras de exceção além do explicitamente decidido — o que não foi decidido permanece [H].
 **Motivo da Revisão 5:** o responsável pelo projeto homologou a **consolidação completa do motor de progresso físico**, detalhando pontos que a Revisão 4 havia deixado em [H]: (a) fórmula do método quantitativo (Quantidade Executada / Quantidade Planejada/Elegível); (b) tabela fechada do método por status (Pendente = 0%, Em andamento = 50%, Concluído = 100%, sem percentuais adicionais nem intermediário manual); (c) o peso automático é sempre **global**, calculado sobre o total de Serviços Elegíveis da Obra, e **não é renormalizado** por Subetapa/Etapa — os pesos globais são apenas somados por agrupamento na consolidação; (d) critérios de elegibilidade de Serviço para o cálculo físico; (e) ajuste manual de peso não exige obrigatoriamente justificativa nem aprovação prévia, mas o sistema deve preservar o peso automático original e o peso ajustado utilizado; (f) peso manual fica protegido — não sofre redistribuição automática; (g) quando parte dos serviços tem peso automático, a diferença necessária para fechar 100% é redistribuída proporcionalmente somente entre eles; (h) se todos os Serviços Elegíveis estiverem com peso manual e a soma deixar de fechar 100%, o sistema bloqueia o ajuste em vez de redistribuir. Esta revisão detalha REG-007 e REG-008, resolve o item [H] de escopo do denominador em REG-020, e adiciona REG-022 (Serviços Elegíveis), REG-023 (Proteção do Peso Manual), REG-024 (Redistribuição Proporcional) e REG-025 (Bloqueio quando Todos os Pesos são Manuais). Nenhuma decisão anterior foi reaberta; o que não foi explicitamente decidido nesta rodada (arredondamento, tolerância, tratamento de excedente, quantidade planejada zero, lista fechada de serviços por método, campos técnicos definitivos de rastreabilidade, fórmula técnica exata da redistribuição, fluxo de vínculo Aporte↔Serviço) permanece [H].
 **Motivo da Revisão 6:** o responsável pelo projeto homologou o módulo/base de **ORÇAMENTO** ("Etapa 3" de construção): (a) Valor Previsto = Quantidade × Valor Unitário (Opção C) como padrão, com possibilidade de Ajuste Manual pelo Operador, preservando sempre o Valor Calculado; (b) Variação do Orçamento = Valor Previsto − Valor Calculado (termo "Variação", nunca "Desvio"); (c) domínio fechado do Status do Serviço/Orçamento (Ativo, Concluído, Cancelado, Retirado do Escopo, Substituído); (d) Serviços Cancelados/Retirados do Escopo/Substituídos não compõem os totais do orçamento corrente, mas continuam existindo na base (nenhum registro é apagado); (e) consolidação do Orçamento Previsto pela hierarquia Serviço → Subetapa → Etapa → Obra, usando o Valor Previsto (REG-003 atualizada). Esta revisão reescreve REG-003 e adiciona REG-026 (Valor Previsto do Serviço), REG-027 (Status do Serviço/Orçamento) e REG-028 (Variação do Orçamento). Conforme instrução explícita da Seção 36 da homologação, **apenas a decisão do Valor Previsto (Opção C) foi tratada como HOMOLOGADA por esta rodada** — as demais decisões registradas aqui (Status do Serviço, Variação) são aplicações diretas de listas/fórmulas fornecidas explicitamente na própria homologação, não invenções; nada além disso foi promovido de [P]/[H] para [D]. Não implementados nesta revisão (permanecem para etapas futuras): Aportes, Alterações Aprovadas, Custo Realizado, Pagamentos, Saldo de Caixa, Orçamento Vigente completo (REG-017), alertas de desvio (REG-013/014/015), variação percentual.
+**Motivo da Revisão 7:** o responsável pelo projeto homologou o módulo **FINANCEIRO** ("Etapa 4" de construção, 2026-09-17): (a) domínio fechado do Tipo de FINANCEIRO — Aporte, Outras Entradas, Despesa/Custo, Outras Saídas — fechando o que a Revisão 1 (REG-006) havia deixado parcial; (b) Custo Realizado = Σ Valor dos lançamentos do tipo Despesa/Custo, independentemente de pagamento; (c) Orçamento Vigente = Orçamento Inicial + Σ Aportes **nesta etapa** (a parcela de Alterações Formais Aprovadas de REG-017 permanece [H] — o módulo Alterações não foi construído); (d) Saldo Orçamentário = Orçamento Vigente − Custo Realizado, podendo ser negativo (estouro), sem bloqueio; (e) % Orçamento Consumido = Custo Realizado / Orçamento Vigente × 100, sem limite artificial de 100%, com tratamento explícito de divisão por zero (retorna "não calculável", nunca 0%); (f) separação formal entre MOVIMENTO FINANCEIRO (reconhecimento do custo, em FINANCEIRO) e PAGAMENTO (baixa financeira, nova entidade PAGAMENTOS), com N pagamentos parciais e/ou totais por lançamento; (g) A Pagar = Custo Reconhecido − Total Pago; (h) Saldo de Caixa = (Aportes + Outras Entradas) − (Pagamentos + Outras Saídas) — o reconhecimento de uma Despesa/Custo NÃO reduz o Caixa por si só. Esta revisão reescreve REG-004, REG-005 e REG-018 (de [H]/[P] para [D]); acrescenta uma nota explícita em REG-017 sobre o escopo parcial implementado nesta etapa; e adiciona REG-029 (Pagamento e A Pagar), REG-030 (Tipos de Movimentação Financeira), REG-031 (% Orçamento Consumido e Divisão por Zero) e REG-032 (Estouro de Orçamento Não Bloqueia). **Alterações Formais Aprovadas continuam [H]/fora de escopo** (módulo Alterações não construído) — nenhuma implementação foi inventada para essa parcela.
 
 ## Legenda de status
 
@@ -42,21 +43,23 @@
 - **Status:** [D] — fórmula homologada para esta implementação na Etapa 3 (Seção 36), substituindo a proposta [P] anterior (que somava apenas o Valor Total Orçado, sem contemplar Ajuste Manual nem exclusão de Serviços Cancelados/Retirados do Escopo/Substituídos).
 - **Teste necessário:** teste unitário de soma por Subetapa/Etapa/Obra; teste de regressão ao adicionar/remover serviço; teste de que um Serviço cancelado não entra na soma (ver REG-027).
 
-### REG-004 — Custo Realizado
-- **Descrição:** o Custo Realizado de uma Obra/Etapa é a soma dos lançamentos financeiros do tipo despesa vinculados a ela.
-- **Entrada:** lançamentos de FINANCEIRO do tipo "Despesa" vinculados à Obra/Etapa.
-- **Condição:** soma de todos os lançamentos de despesa confirmados/pagos.
-- **Resultado:** Custo Realizado = Σ(Valor dos lançamentos de despesa). **Depende da definição completa do domínio "Tipo" em FINANCEIRO (ver REG-006 — Aporte já está definido como não sendo despesa; outros valores possíveis do domínio "Tipo" além de Aporte/Despesa continuam [H]) e do que conta como "confirmado".**
-- **Status:** [H]
-- **Teste necessário:** teste unitário de soma condicionada ao status do lançamento.
+### REG-004 — Custo Realizado — [D] HOMOLOGADO EM 2026-09-17 (Revisão 7)
+- **Descrição:** o Custo Realizado de uma Obra é a soma dos lançamentos de FINANCEIRO do tipo Despesa/Custo vinculados a ela — **independentemente de já terem sido pagos** (ver REG-029 sobre a separação entre reconhecimento do custo e Pagamento).
+- **Entrada:** lançamentos de FINANCEIRO do tipo "Despesa/Custo" (REG-030) vinculados à Obra.
+- **Condição:** soma de todos os lançamentos do tipo Despesa/Custo registrados na Obra.
+- **Resultado (fórmula homologada — Etapa 4, Seção 11/16):** **Custo Realizado = Σ(Valor dos lançamentos do tipo Despesa/Custo).** Não depende de status de pagamento — uma Despesa/Custo lançada e não paga já integra o Custo Realizado (Etapa 4, Seção 11, exemplo explícito: Despesa = 10.000, Pago = 0 → Custo Realizado = 10.000).
+- **O que esta decisão NÃO define (permanece [H]):** filtragem por `situacao`/cancelamento (ver REG-023 da Etapa 4 no `DAD_001`, entidade FINANCEIRO) — o domínio de cancelamento não foi homologado nesta rodada; nenhum lançamento é excluído do Custo Realizado por esse campo (ver Etapa 4, Seção 23, e o relatório da Etapa 4, "Pendências").
+- **Status:** [D] — fórmula homologada para esta implementação na Etapa 4 (Seções 11/16), substituindo a redação [H] anterior que dependia de uma definição de "confirmado" que nunca foi fixada.
+- **Teste necessário:** ver Cenários A–J da homologação da Etapa 4 (`testes/test_financeiro.py`) — cobrem despesa não paga, paga parcialmente, paga totalmente, e a independência do Custo Realizado em relação ao pagamento.
 
-### REG-005 — Saldo Orçamentário
-- **Descrição:** saldo entre o que está disponível para a obra e o que foi efetivamente gasto.
-- **Entrada:** Orçamento Vigente/Disponível (REG-017), Custo Realizado (REG-004).
-- **Condição:** sempre calculado, atualizado a cada lançamento, aporte ou alteração formal aprovada.
-- **Resultado (proposta):** Saldo Orçamentário = Orçamento Vigente/Disponível − Custo Realizado.
-- **Status:** [P] — a subtração em si é proposta (consistente com a redação original "Orçamento Previsto, Custo Realizado e Saldo Atual"); o que muda na Revisão 2 é que o termo de comparação deixa de ser apenas o Orçamento Previsto Total (REG-003) e passa a ser o Orçamento Vigente/Disponível (REG-017), que já incorpora aportes e alterações formais, conforme decisão homologada. **A fórmula da subtração em si ainda precisa de homologação formal antes de virar fórmula de planilha; o que já está homologado é apenas que o termo de comparação correto é o Orçamento Vigente, não o Orçamento Previsto isolado.**
-- **Teste necessário:** teste unitário da subtração; teste de caso "saldo negativo" (ver REG-015); teste de regressão ao lançar um aporte (o saldo deve aumentar, não diminuir).
+### REG-005 — Saldo Orçamentário — [D] HOMOLOGADO EM 2026-09-17 (Revisão 7)
+- **Descrição:** saldo entre o que está disponível para a obra (Orçamento Vigente) e o que foi efetivamente reconhecido como custo.
+- **Entrada:** Orçamento Vigente/Disponível (REG-017 — nesta implementação, Orçamento Inicial + Aportes, ver nota em REG-017), Custo Realizado (REG-004).
+- **Condição:** sempre calculado; não é um campo editável manualmente.
+- **Resultado (fórmula homologada — Etapa 4, Seção 5):** **Saldo Orçamentário = Orçamento Vigente − Custo Realizado.**
+- **Regra de não bloqueio (Etapa 4, Seções 2/5, REG-032):** o Saldo Orçamentário **pode ser negativo** (estouro de orçamento) — isso não bloqueia nenhum lançamento nem é corrigido automaticamente; o sistema apenas informa a situação (ver REG-032).
+- **Status:** [D] — fórmula homologada para esta implementação na Etapa 4; a subtração passa de proposta ([P], Revisão 1/2) para homologada, com o termo de comparação correto (Orçamento Vigente, não o Orçamento Previsto isolado) já resolvido desde a Revisão 2 (REG-017).
+- **Teste necessário:** ver Cenários A, C, F e J da homologação da Etapa 4 (`testes/test_financeiro.py`) — cobrem saldo positivo, saldo após despesa não paga, estouro (saldo negativo) e orçamento zero.
 
 ### REG-006 — Vínculo entre Aporte e Orçamento (Opção B) — [D] CONFLITO RESOLVIDO EM 2026-09-16
 - **Decisão homologada pelo responsável pelo projeto:** **Opção B — Vincular Aporte ao Orçamento.** Substitui o registro de conflito [C] da Revisão 1 deste documento.
@@ -64,8 +67,9 @@
 - **Entrada:** lançamento em FINANCEIRO do tipo "Aporte", vinculado à Obra, com valor, data e origem.
 - **Condição:** lançamento de Aporte confirmado.
 - **Resultado:** o valor do aporte é somado ao Orçamento Vigente/Disponível da Obra (ver fórmula em REG-017). O aporte permanece registrado individualmente em FINANCEIRO (não é absorvido/apagado ao alimentar o orçamento) — não se cria uma segunda fonte de verdade para o orçamento: o Orçamento Vigente é sempre recalculado a partir de FINANCEIRO (aportes) e ALTERAÇÕES (impacto orçamentário aprovado), nunca editado diretamente.
-- **O que esta decisão NÃO define (permanece [H]):** thresholds, fluxo de aprovação do próprio aporte (se há aprovação necessária para registrar um aporte), e a fórmula do Saldo de Caixa (ver REG-018) — que continua sendo um conceito distinto do Saldo Orçamentário (REG-005), conforme exigido explicitamente pela decisão homologada.
-- **Status:** [D] — decisão homologada pelo responsável pelo projeto em 2026-09-16.
+- **O que esta decisão NÃO define (permanece [H]):** thresholds; fluxo de aprovação do próprio aporte (se há aprovação necessária para registrar um aporte).
+- **Nota da Revisão 7 (Etapa 4, Seção 8):** o domínio "Tipo" desta regra, antes parcial (só Aporte/Despesa), foi **fechado** em 2026-09-17 com 4 valores: Aporte, Outras Entradas, Despesa/Custo, Outras Saídas — ver REG-030 (novo). A fórmula do Saldo de Caixa, antes [H], também foi homologada — ver REG-018 (Revisão 7).
+- **Status:** [D] — decisão homologada pelo responsável pelo projeto em 2026-09-16; domínio "Tipo" completado em 2026-09-17 (REG-030).
 - **Teste necessário:** teste unitário — lançar um Aporte e verificar que (a) o Orçamento Vigente/Disponível aumenta no valor exato do aporte, (b) o Custo Realizado (REG-004) não é afetado, (c) o aporte aparece individualmente listado em FINANCEIRO com seus campos (valor, data, origem).
 
 ### REG-007 — Método de Execução do Serviço (Modelo Híbrido) — [D] HOMOLOGADO EM 2026-09-16 (Revisão 4) / DETALHADO EM 2026-09-16 (Revisão 5)
@@ -166,15 +170,18 @@
   **Orçamento Vigente/Disponível = Orçamento Inicial + Σ(Aportes) + Σ(Alterações formais aprovadas com impacto no orçamento).**
 - **Regra de fonte única:** o Orçamento Vigente é sempre **derivado/calculado** a partir de Orçamento Inicial + FINANCEIRO (aportes) + ALTERAÇÕES (impacto aprovado). Não deve existir um campo editável manualmente que sobrescreva esse cálculo — não se cria uma segunda fonte de verdade para o orçamento (decisão explícita do responsável pelo projeto).
 - **Status:** [D] — fórmula homologada pelo responsável pelo projeto em 2026-09-16 (Opção B).
-- **Teste necessário:** teste unitário da soma; teste de regressão ao adicionar aporte, ao aprovar alteração com impacto orçamentário, e ao combinar os dois no mesmo período.
+- **Nota da Revisão 7 (Etapa 4, Seção 4):** **apenas a parcela Orçamento Inicial + Aportes está implementada nesta etapa.** A parcela "Σ(Alterações formais aprovadas com impacto no orçamento)" desta fórmula **permanece [H] e fora de escopo** — o módulo ALTERAÇÕES não foi construído (Etapa 4, Seção 4: "não inventar implementação de Alterações"; "a parcela de Alterações Aprovadas deverá ficar preparada para integração posterior"). `src/financeiro/calculos.py:orcamento_vigente` calcula hoje apenas Orçamento Inicial + Aportes.
+- **Teste necessário:** teste unitário da soma; teste de regressão ao adicionar aporte; teste da parcela de Alterações fica pendente até o módulo ALTERAÇÕES ser construído.
 
-### REG-018 — Saldo de Caixa (conceito distinto, fórmula não definida) — [H]
-- **Descrição:** possível indicador de disponibilidade efetiva de caixa (recursos financeiros recebidos e não gastos), distinto do Saldo Orçamentário (REG-005), que compara orçamento disponível × custo realizado independentemente do status de pagamento.
-- **Entrada:** não definida.
-- **Condição:** não definida.
-- **Resultado:** **não definido.** A decisão homologada em 2026-09-16 (REG-006/REG-017) resolveu como o Aporte se relaciona com o Orçamento Vigente, mas **exige explicitamente que Saldo de Caixa continue sendo tratado como um conceito conceitualmente distinto** do Saldo Orçamentário — sem, no entanto, definir sua fórmula. Nenhuma fórmula foi inventada aqui para preencher essa lacuna.
-- **Status:** [H]
-- **Teste necessário:** não pode ser escrito até a definição conceitual (se este indicador será implementado na V1) ser homologada.
+### REG-018 — Saldo de Caixa — [D] HOMOLOGADO EM 2026-09-17 (Revisão 7)
+- **Descrição:** indicador de disponibilidade efetiva de caixa (recursos financeiros recebidos e não gastos), distinto do Saldo Orçamentário (REG-005), que compara orçamento disponível × custo reconhecido independentemente do status de pagamento (Etapa 4, Seções 3/15/16 — "NÃO confundir ORÇAMENTO com CAIXA").
+- **Entrada:** Σ Aportes, Σ Outras Entradas (REG-030), Σ Pagamentos (REG-029), Σ Outras Saídas (REG-030).
+- **Condição:** sempre calculado; não é um campo editável manualmente.
+- **Resultado (fórmula homologada — Etapa 4, Seção 15):**
+  **Saldo de Caixa = (Aportes + Outras Entradas) − (Pagamentos + Outras Saídas).**
+  Entradas = Aportes + Outras Entradas. Saídas = Pagamentos + Outras Saídas — **nunca** a Despesa/Custo em si (Seção 16: "o reconhecimento de uma Despesa/Custo NÃO deve reduzir o Caixa automaticamente se nenhum pagamento tiver sido registrado").
+- **Status:** [D] — fórmula homologada pelo responsável pelo projeto em 2026-09-17, resolvendo a lacuna que a Revisão 2 havia deliberadamente deixado [H].
+- **Teste necessário:** ver Cenários C, G, H e I da homologação da Etapa 4 (`testes/test_financeiro.py`) — cobrem despesa não paga (Caixa não reduz), Outras Entradas, Outras Saídas e a combinação de Pagamento + Outras Saídas.
 
 ### REG-019 — Hierarquia Oficial de Organização da Execução (OBRA → ETAPA → SUBETAPA → SERVIÇO) — [D] HOMOLOGADO EM 2026-09-16
 - **Descrição:** a organização da execução da obra segue uma hierarquia fixa de 4 níveis: OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO. SUBETAPAS é entidade própria do modelo de dados (não um campo textual de Serviços nem um nível implícito de Etapas) — decisão de arquitetura homologada pelo responsável pelo projeto, eliminando o conflito [C] anteriormente registrado em `DAD_001` sobre a existência de Subetapas como entidade.
@@ -274,11 +281,55 @@
 - **Status:** [D] (fórmula da variação absoluta, em R$) / [H] (variação percentual, formatação de alerta).
 - **Teste necessário:** teste unitário da subtração; teste de que a Variação é `None`/vazia quando faltam dados; teste de que nenhuma cor/ícone de alerta é aplicado à coluna.
 
+### REG-029 — Pagamento e A Pagar (separação Custo Realizado × Pagamento) — [D] HOMOLOGADO EM 2026-09-17
+- **Descrição:** o reconhecimento de uma Despesa/Custo (REG-004) é conceitualmente distinto de sua baixa financeira (Pagamento) — Etapa 4, Seção 20: "separar claramente MOVIMENTO FINANCEIRO de PAGAMENTO". Uma Despesa/Custo pode não estar paga, estar parcialmente paga ou totalmente paga; um mesmo lançamento pode ter múltiplos Pagamentos.
+- **Entrada:** Valor do lançamento FINANCEIRO do tipo Despesa/Custo (Custo Reconhecido); Σ Valor de todos os Pagamentos vinculados a esse lançamento (Total Pago).
+- **Condição:** todo lançamento do tipo Despesa/Custo pode ter zero, um ou múltiplos Pagamentos (parciais e/ou totais) associados.
+- **Resultado (fórmula homologada — Etapa 4, Seção 14):** **A Pagar = Custo Reconhecido − Total Pago.**
+- **Regra de integridade técnica (não é regra de negócio nova, é proteção estrutural — mesmo padrão de REG-019):** um registro de PAGAMENTOS só pode referenciar um lançamento de FINANCEIRO do tipo Despesa/Custo — não existe "pagamento" de um Aporte, de Outras Entradas ou de Outras Saídas, por definição dos próprios conceitos (Seção 3: "NÃO confundir CUSTO REALIZADO com PAGAMENTO").
+- **Autonomia do Operador (Seção 22):** nenhum bloqueio de exclusão/edição de Pagamento foi criado por já existir um pagamento associado a um custo — essa função de edição/exclusão em si ainda não foi implementada em nenhuma camada (Etapas 1–4), não é uma restrição nova desta regra.
+- **Status:** [D] — fórmula e separação conceitual homologadas pelo responsável pelo projeto em 2026-09-17.
+- **Teste necessário:** ver Cenários D, E e I da homologação da Etapa 4 (`testes/test_financeiro.py`) — pagamento parcial, pagamento total e custo com pagamento parcial.
+
+### REG-030 — Tipos de Movimentação Financeira (domínio fechado) — [D] HOMOLOGADO EM 2026-09-17
+- **Descrição:** domínio fechado do campo "Tipo" da entidade FINANCEIRO, fechando o que a Revisão 1 (REG-006) havia deixado parcial (só Aporte/Despesa).
+- **Entrada:** Tipo atribuído a um lançamento de FINANCEIRO.
+- **Condição:** sempre que um lançamento de FINANCEIRO é criado.
+- **Resultado (domínio fechado homologado — Etapa 4, Seção 8):** **Aporte, Outras Entradas, Despesa/Custo, Outras Saídas.** Nenhum outro valor é válido nesta rodada ("não criar outros tipos nesta etapa sem homologação").
+- **Comportamento de cada tipo (Seções 9/10/11/12, já refletido em REG-004/REG-006/REG-017/REG-018):**
+  | Tipo | Aumenta Orçamento Vigente? | É Custo Realizado? | Efeito no Caixa |
+  |---|---|---|---|
+  | Aporte | Sim | Não | Entra no Caixa no lançamento |
+  | Outras Entradas | Não | Não | Entra no Caixa no lançamento |
+  | Despesa/Custo | Não | Sim | Só via Pagamento (REG-029) — nunca no reconhecimento |
+  | Outras Saídas | Não | Não | Reduz o Caixa no lançamento |
+- **Status:** [D] — domínio fechado homologado pelo responsável pelo projeto em 2026-09-17.
+- **Teste necessário:** teste unitário por tipo (os 4 valores) verificando o efeito correto em Orçamento Vigente/Custo Realizado/Caixa — ver `testes/test_financeiro.py`.
+
+### REG-031 — % Orçamento Consumido e Tratamento de Divisão por Zero — [D] HOMOLOGADO EM 2026-09-17
+- **Descrição:** percentual do Orçamento Vigente já consumido pelo Custo Realizado.
+- **Entrada:** Custo Realizado (REG-004), Orçamento Vigente (REG-017).
+- **Condição:** sempre calculado.
+- **Resultado (fórmula homologada — Etapa 4, Seção 6):** **% Orçamento Consumido = Custo Realizado / Orçamento Vigente × 100.** Pode ultrapassar 100% (estouro) — nunca é limitado artificialmente (ver REG-032).
+- **Divisão por zero (Etapa 4, Seção 7):** quando o Orçamento Vigente é zero, o resultado é **"não calculável"** — representado como `None` em Python e como o texto `"N/D"` na fórmula Excel (`IF(OrçamentoVigente=0,"N/D",...)`) — **nunca como 0%**, que seria uma leitura inválida de uma divisão por zero.
+- **Status:** [D] — fórmula e tratamento de divisão por zero homologados pelo responsável pelo projeto em 2026-09-17.
+- **Teste necessário:** ver Cenários A, F e J da homologação da Etapa 4 (`testes/test_financeiro.py`) — 0% válido, estouro (>100%) e orçamento zero ("não calculável").
+
+### REG-032 — Estouro de Orçamento Não Bloqueia — [D] HOMOLOGADO EM 2026-09-17
+- **Descrição:** princípio fundamental do módulo Financeiro (Etapa 4, Seção 2): "o sistema informa, o Operador decide". Nenhum lançamento é impedido por causar ou ampliar um estouro de orçamento.
+- **Entrada:** Saldo Orçamentário (REG-005).
+- **Condição:** Custo Realizado > Orçamento Vigente (Saldo Orçamentário < 0).
+- **Resultado (homologado — Etapa 4, Seções 2/29):** o lançamento **continua permitido**; o Saldo Orçamentário pode ficar negativo; o % Consumido pode ultrapassar 100% (REG-031); o sistema apenas **informa** a situação (indicador textual, sem cor/formatação condicional — mesmo princípio de REG-028/Etapa 3 Seção 31) — nunca bloqueia, apaga ou corrige automaticamente o lançamento.
+- **Visibilidade do indicador (Etapa 4, Seções 29/30):** o indicador de estouro é **Operador-only** por especificação explícita — o Cliente não deve ter acesso a ele. **Esta regra de visibilidade por perfil ainda não é tecnicamente aplicada** — não existe, em nenhuma etapa construída até aqui, um mecanismo de restrição de acesso por perfil no Excel (SEC_001, Seção 4, permanece [H]; ver AGENTS.md §9, "Perfis e Acesso" como camada transversal ainda não implementada). Registrado como pendência explícita, não como omissão.
+- **Status:** [D] (princípio de não bloqueio; indicador textual sem cor/formatação condicional) / [H] (mecanismo técnico de restrição de visibilidade por perfil, herdado de SEC_001).
+- **Teste necessário:** ver Cenário F da homologação da Etapa 4 (`testes/test_financeiro.py`) — lançamento de despesa que ultrapassa o orçamento não levanta exceção; teste de que nenhuma formatação condicional foi criada na aba Resumo Financeiro (`testes/test_excel_financeiro.py`).
+
 ---
 
 ## Regras citadas na tarefa sem informação suficiente para formalizar
 
-- **Aportes:** **[C] RESOLVIDO em 2026-09-16** — ver REG-006 (vínculo Aporte × Orçamento, Opção B homologada) e REG-017 (fórmula do Orçamento Vigente/Disponível). O conceito de Saldo de Caixa citado junto com Aportes na Revisão 1 permanece [H] — ver REG-018. A partir da Revisão 4, ver também REG-021 (aporte não altera peso físico automaticamente).
+- **Aportes:** **[C] RESOLVIDO em 2026-09-16** — ver REG-006 (vínculo Aporte × Orçamento, Opção B homologada) e REG-017 (fórmula do Orçamento Vigente/Disponível — parcela Orçamento Inicial + Aportes implementada na Etapa 4; parcela de Alterações Aprovadas permanece [H]). O conceito de Saldo de Caixa citado junto com Aportes na Revisão 1 **[D] HOMOLOGADO em 2026-09-17** — ver REG-018 (Revisão 7). A partir da Revisão 4, ver também REG-021 (aporte não altera peso físico automaticamente).
+- **Financeiro (Custo Realizado, Pagamentos, Saldo de Caixa, tipos de movimentação):** **[D] HOMOLOGADO em 2026-09-17 (Revisão 7)** — ver REG-004 (Custo Realizado), REG-005 (Saldo Orçamentário), REG-018 (Saldo de Caixa), REG-029 (Pagamento/A Pagar), REG-030 (4 tipos de movimentação), REG-031 (% Consumido/divisão por zero) e REG-032 (estouro não bloqueia). Permanecem [H]/fora de escopo: Alterações Formais Aprovadas (parcela de REG-017); domínio de cancelamento/situação de FINANCEIRO (Seção 23); mecanismo técnico de restrição de visibilidade por perfil (REG-032, Operador-only).
 - **Pesos:** **[D] amplamente HOMOLOGADO em 2026-09-16 (Revisões 4 e 5)** — ver REG-008 (peso automático global a partir do valor orçado, sem renormalização por nível), REG-020 (uso do peso na consolidação hierárquica), REG-022 (elegibilidade), REG-023 (proteção do peso manual), REG-024 (redistribuição proporcional entre automáticos) e REG-025 (bloqueio quando todos os pesos são manuais). Permanecem [H]: campos técnicos definitivos de rastreabilidade do ajuste manual (REG-008), domínios fechados que operacionalizam a elegibilidade (REG-022) e fórmula técnica exata da redistribuição proporcional (REG-024).
 - **Método de execução do Serviço:** **[D] HOMOLOGADO em 2026-09-16 (Revisão 5)** — ver REG-007 (fórmula do método quantitativo e tabela fechada do método por status: Pendente 0% / Em andamento 50% / Concluído 100%). Permanecem [H]: lista de serviços por método, arredondamento/tolerância, tratamento de excedente e de quantidade planejada zero.
 - **Medições — periodicidade:** ver DAD_001 (entidade EXECUÇÃO/MEDIÇÕES) — não definida.
@@ -332,3 +383,18 @@ Em 2026-09-16, o responsável pelo projeto homologou o módulo/base de **ORÇAME
 Conforme instrução explícita da Seção 36 da homologação da Etapa 3, **apenas a decisão do Valor Previsto (REG-026, Opção C) foi tratada como HOMOLOGADA** — o Status do Serviço (REG-027) e a Variação (REG-028) são registrados como [D] por serem aplicações diretas de listas/fórmulas fornecidas explicitamente na própria homologação (Seções 13 e 18), não interpretações ou invenções do agente; nenhuma outra proposta [P]/[H] pré-existente foi promovida a [D] por extensão.
 
 **Preservado, não reaberto:** Aporte × Orçamento = Opção B; SUBETAPAS como entidade própria; hierarquia OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO; Modelo Híbrido de progresso físico e peso automático (Revisões 4/5); separação entre orçamento financeiro e progresso físico (REG-021). **Permanecem [H]/fora de escopo, não inventados nesta rodada:** Orçamento Vigente completo (Orçamento Inicial + Aportes + Alterações Aprovadas, REG-017); Custo Realizado, Pagamentos, Saldo de Caixa; Alterações aprovadas modificando orçamento/escopo; alertas de desvio orçamentário (REG-013/014/015) e variação percentual; fluxo de transição entre status do Serviço (REG-027); regra de arredondamento de exibição além da formatação de moeda padrão (REG-026); mecanismo de proteção do Excel (SEC_001).
+
+## Registro de homologação — Revisão 7
+
+Em 2026-09-17, o responsável pelo projeto homologou o módulo **FINANCEIRO** (Etapa 4 de construção), registrado em:
+- **REG-004 (reescrita)** — Custo Realizado = Σ Valor dos lançamentos do tipo Despesa/Custo, independentemente de pagamento;
+- **REG-005 (reescrita)** — Saldo Orçamentário = Orçamento Vigente − Custo Realizado, podendo ser negativo, sem bloqueio (ver REG-032);
+- **REG-006 (nota)** — domínio "Tipo" completado com 4 valores (ver REG-030);
+- **REG-017 (nota)** — apenas a parcela Orçamento Inicial + Aportes está implementada nesta etapa; Alterações Formais Aprovadas permanecem [H]/fora de escopo;
+- **REG-018 (reescrita)** — Saldo de Caixa = (Aportes + Outras Entradas) − (Pagamentos + Outras Saídas), resolvendo a lacuna [H] da Revisão 2;
+- **REG-029 (nova)** — separação Custo Realizado × Pagamento; A Pagar = Custo Reconhecido − Total Pago; N pagamentos parciais/totais por lançamento;
+- **REG-030 (nova)** — domínio fechado do Tipo de FINANCEIRO: Aporte, Outras Entradas, Despesa/Custo, Outras Saídas;
+- **REG-031 (nova)** — % Orçamento Consumido = Custo Realizado / Orçamento Vigente × 100, sem limite de 100%; divisão por zero tratada como "não calculável" (nunca 0%);
+- **REG-032 (nova)** — estouro de orçamento não bloqueia nenhum lançamento; indicador é Operador-only por especificação (mecanismo técnico de restrição por perfil permanece [H]).
+
+**Preservado, não reaberto:** todas as decisões das Revisões 1–6 (Aporte × Orçamento = Opção B; SUBETAPAS como entidade própria; hierarquia oficial; Modelo Híbrido de progresso físico; Valor Previsto/Status do Serviço/Variação do Orçamento da Etapa 3). **Permanecem [H]/fora de escopo, não inventados nesta rodada:** Alterações Formais Aprovadas (módulo não construído — parcela de REG-017); domínio fechado de `situacao`/cancelamento em FINANCEIRO (Etapa 4, Seção 23); mecanismo técnico de restrição de visibilidade por perfil (REG-032, SEC_001); vínculo Aporte→Serviço executável (REG-021, inalterado); Compras e Fornecedores como módulos com interface Excel própria (existem apenas como entidades/FKs opcionais no modelo Python, Etapa 4, Seções 24/25); fluxo de edição/exclusão de lançamentos e pagamentos (Etapa 4, Seção 22 — autonomia do Operador reconhecida, mas a função em si não foi implementada em nenhuma camada até esta etapa).

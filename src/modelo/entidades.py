@@ -244,7 +244,14 @@ class Compra:
 
 @dataclass
 class Financeiro:
-    """ENTIDADE: FINANCEIRO (DAD_001).
+    """ENTIDADE: FINANCEIRO (DAD_001) — estendida na Etapa 4 (Seções 8/19).
+
+    Representa uma MOVIMENTAÇÃO FINANCEIRA: Aporte, Outras Entradas,
+    Despesa/Custo ou Outras Saídas (`TipoLancamentoFinanceiro`, [D]
+    HOMOLOGADO na Etapa 4, Seção 8). Deliberadamente DISTINTA de
+    `Pagamento` (Etapa 4, Seção 20): o reconhecimento de uma Despesa/
+    Custo (este registro) é independente de sua baixa financeira —
+    ver `Pagamento` e `src/financeiro/calculos.py`.
 
     Aporte × Orçamento = Opção B (REG-006/REG-017, [D] HOMOLOGADO). Um
     Aporte só influencia o progresso físico se vinculado a um Serviço
@@ -255,13 +262,52 @@ class Financeiro:
 
     id: str
     id_obra: str  # FK -> Obra.id
-    tipo: TipoLancamentoFinanceiro  # [D] parcial (REG-006) — Aporte/Despesa
+    tipo: TipoLancamentoFinanceiro  # [D] HOMOLOGADO na Etapa 4 (Seção 8)
     data: date
     valor: float
+    # ^ Sempre não negativo (Etapa 4, Seção 21: "o sinal já é
+    # representado pelo TIPO da movimentação") — validado em
+    # `__post_init__`. Ex.: Aporte = 10000, nunca -10000.
+    descricao: Optional[str] = None  # [P] — rótulo amigável do lançamento (Etapa 4, Seção 19)
     categoria: Optional[str] = None  # [H] domínio não homologado
     origem_destino: Optional[str] = None  # [P]
-    status_pagamento: Optional[str] = None  # [H]
+    status_pagamento: Optional[str] = None  # [H] — herdado da Etapa 1; ver `situacao` (Etapa 4) para cancelamento/controle
     id_servico_vinculado: Optional[str] = None  # FK -> ServicoOrcamento.id — ver docstring
+    id_fornecedor: Optional[str] = None  # FK -> Fornecedor.id — opcional (Etapa 4, Seção 24: "não obrigar fornecedor")
+    id_compra: Optional[str] = None  # FK -> Compra.id — opcional (Etapa 4, Seção 25); nenhuma automação Compra→Financeiro foi criada
+    observacao: Optional[str] = None  # [P] (Etapa 4, Seção 19)
+    situacao: Optional[str] = None
+    # ^ [H] — domínio de cancelamento/controle ainda não homologado
+    # (Etapa 4, Seção 23: "não inventar um domínio fechado; preparar a
+    # estrutura e registrar a pendência"). Texto livre; um cancelamento
+    # NUNCA se transforma automaticamente em exclusão do registro.
+
+    def __post_init__(self) -> None:
+        validar_numero_nao_negativo(self.valor, "Valor do Lançamento Financeiro")
+
+
+@dataclass
+class Pagamento:
+    """ENTIDADE: PAGAMENTOS — nova na Etapa 4 (Seção 20, [D] HOMOLOGADO
+    em 2026-09-17: "separar claramente MOVIMENTO FINANCEIRO de
+    PAGAMENTO. Não esconder pagamentos dentro do mesmo campo de custo").
+
+    Um Pagamento é a BAIXA financeira de um lançamento `Financeiro` do
+    tipo Despesa/Custo — nunca o próprio reconhecimento do custo. A
+    estrutura permite N Pagamentos por lançamento (parciais e/ou totais,
+    Seções 13/14/20); `BaseDados.adicionar_pagamento` garante que
+    `id_financeiro` existe e é, de fato, um lançamento do tipo
+    Despesa/Custo (ver `ErroPagamentoDeTipoInvalido`).
+    """
+
+    id: str
+    id_financeiro: str  # FK -> Financeiro.id (o lançamento de Despesa/Custo amortizado)
+    data: date  # [P] — data do pagamento (distinta da data do lançamento/reconhecimento do custo)
+    valor: float  # sempre não negativo (Etapa 4, Seção 21) — validado em __post_init__
+    observacao: Optional[str] = None  # [P] (Etapa 4, Seção 19)
+
+    def __post_init__(self) -> None:
+        validar_numero_nao_negativo(self.valor, "Valor do Pagamento")
 
 
 @dataclass
