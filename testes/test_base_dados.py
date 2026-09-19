@@ -101,6 +101,7 @@ def test_compra_pode_referenciar_fornecedor_e_servico_existentes():
         Compra(
             id=base.gerador_id.gerar("COMPRAS"),
             id_obra=obra.id,
+            descricao="Cimento e areia",
             id_fornecedor=fornecedor.id,
             id_servico=servico.id,
         )
@@ -113,7 +114,7 @@ def test_compra_com_fornecedor_inexistente_e_rejeitada():
     obra = base.adicionar_obra(Obra(id=base.gerador_id.gerar("OBRAS"), nome="Obra A"))
     with pytest.raises(ErroReferenciaInvalida):
         base.adicionar_compra(
-            Compra(id="COM-0001", id_obra=obra.id, id_fornecedor="FOR-9999")
+            Compra(id="COM-0001", id_obra=obra.id, descricao="Item qualquer", id_fornecedor="FOR-9999")
         )
 
 

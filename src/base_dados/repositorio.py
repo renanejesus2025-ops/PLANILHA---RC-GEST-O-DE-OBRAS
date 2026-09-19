@@ -124,7 +124,7 @@ class BaseDados:
         self._registrar(self.fornecedores, fornecedor)
         return fornecedor
 
-    # -- Compra (depende de Obra; Fornecedor/Serviço opcionais) --------------
+    # -- Compra (depende de Obra; Fornecedor/Etapa/Subetapa/Serviço opcionais) --
     def adicionar_compra(self, compra: Compra) -> Compra:
         if compra.id_obra not in self.obras:
             raise ErroReferenciaInvalida(
@@ -134,6 +134,17 @@ class BaseDados:
             raise ErroReferenciaInvalida(
                 f"Compra '{compra.id}' referencia Fornecedor inexistente "
                 f"'{compra.id_fornecedor}'."
+            )
+        # Etapa 6: vínculos opcionais e independentes (não é a cadeia
+        # hierárquica estrutural de REG-019 — puramente informativos,
+        # exceto Serviço, que também alimenta a Variação).
+        if compra.id_etapa is not None and compra.id_etapa not in self.etapas:
+            raise ErroReferenciaInvalida(
+                f"Compra '{compra.id}' referencia Etapa inexistente '{compra.id_etapa}'."
+            )
+        if compra.id_subetapa is not None and compra.id_subetapa not in self.subetapas:
+            raise ErroReferenciaInvalida(
+                f"Compra '{compra.id}' referencia Subetapa inexistente '{compra.id_subetapa}'."
             )
         if compra.id_servico is not None and compra.id_servico not in self.servicos:
             raise ErroReferenciaInvalida(

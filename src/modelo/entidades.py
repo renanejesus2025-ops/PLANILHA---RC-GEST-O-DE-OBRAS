@@ -236,17 +236,38 @@ class Fornecedor:
 
 @dataclass
 class Compra:
-    """ENTIDADE: COMPRAS (DAD_001)."""
+    """ENTIDADE: COMPRAS (DAD_001) — completada na Etapa 6.
+
+    "1 linha representa uma compra" (DAD_001) — no vocabulário do prompt
+    de homologação da Etapa 6, cada registro `Compra` já É um "item":
+    múltiplos itens de um mesmo pedido são simplesmente múltiplos
+    registros `Compra` (mesma granularidade de FINANCEIRO). Cada um pode,
+    independentemente, referenciar Etapa, Subetapa e/ou Serviço (Seção 5,
+    regra 6 da homologação) — vínculos puramente informativos/de
+    rastreabilidade, exceto o vínculo a Serviço, que também alimenta o
+    cálculo de Variação (`src/compras/calculos.py`).
+
+    Compra NÃO cria automaticamente lançamento financeiro, NÃO altera o
+    Orçamento Vigente nem o progresso físico (Seção 5, regras 2/7/8/9) —
+    "o sistema informa, o Operador decide" (regras 19/20).
+    """
 
     id: str
     id_obra: str  # FK -> Obra.id
+    descricao: str  # [P] — o que foi comprado (Etapa 6; lacuna do modelo original)
     id_fornecedor: Optional[str] = None  # FK -> Fornecedor.id
-    id_servico: Optional[str] = None  # FK -> ServicoOrcamento.id
+    id_etapa: Optional[str] = None  # FK -> Etapa.id — informativo (Etapa 6)
+    id_subetapa: Optional[str] = None  # FK -> Subetapa.id — informativo (Etapa 6)
+    id_servico: Optional[str] = None  # FK -> ServicoOrcamento.id — alimenta a Variação
     data_compra: Optional[date] = None  # [P]
-    valor: Optional[float] = None  # [P]
+    valor: Optional[float] = None  # [P] — sempre não negativo (Etapa 6, mesmo padrão de FINANCEIRO)
     forma_pagamento: Optional[str] = None  # [H] domínio não homologado
     status_aprovacao: Optional[str] = None  # [H] fluxo de aprovação não definido (REG-010)
     status_entrega: Optional[str] = None  # [H]
+    observacao: Optional[str] = None  # [P] (Etapa 6, mesmo padrão de Financeiro/Alterações)
+
+    def __post_init__(self) -> None:
+        validar_numero_nao_negativo(self.valor, "Valor da Compra")
 
 
 @dataclass

@@ -199,6 +199,50 @@ COL_ALT_STATUS = 7
 COL_ALT_SOLICITANTE = 8
 COL_ALT_ID_OBRA = 9
 
+# --------------------------------------------------------------------
+# Etapa 6 — colunas da aba Compras
+# --------------------------------------------------------------------
+COLUNAS_COMPRAS = [
+    ("ID (técnico)", 14, True, False),                 # A
+    ("Descrição", 30, False, False),                   # B
+    ("Fornecedor", 24, False, False),                  # C
+    ("Data da Compra", 14, False, False),              # D
+    ("Valor", 16, False, False),                       # E
+    ("Forma de Pagamento", 20, False, False),          # F
+    ("Status de Aprovação", 18, False, False),         # G
+    ("Status de Entrega", 18, False, False),           # H
+    ("Etapa (opcional)", 24, False, False),            # I
+    ("Subetapa (opcional)", 24, False, False),         # J
+    ("Serviço (opcional)", 28, False, False),          # K
+    ("Planejado (Valor Previsto)", 22, False, True),   # L
+    ("Variação R$", 16, False, True),                  # M
+    ("Variação %", 14, False, True),                   # N
+    ("Observação", 30, False, False),                  # O
+    ("ID_Obra (técnico)", 16, True, False),            # P
+    ("ID_Etapa (técnico)", 16, True, False),           # Q
+    ("ID_Subetapa (técnico)", 18, True, False),        # R
+    ("ID_Servico (técnico)", 18, True, False),         # S
+]
+COL_COM_ID = 1
+COL_COM_DESCRICAO = 2
+COL_COM_FORNECEDOR = 3
+COL_COM_DATA = 4
+COL_COM_VALOR = 5
+COL_COM_FORMA_PAGAMENTO = 6
+COL_COM_STATUS_APROVACAO = 7
+COL_COM_STATUS_ENTREGA = 8
+COL_COM_ETAPA = 9
+COL_COM_SUBETAPA = 10
+COL_COM_SERVICO = 11
+COL_COM_PLANEJADO = 12
+COL_COM_VARIACAO_REAIS = 13
+COL_COM_VARIACAO_PERCENTUAL = 14
+COL_COM_OBSERVACAO = 15
+COL_COM_ID_OBRA = 16
+COL_COM_ID_ETAPA = 17
+COL_COM_ID_SUBETAPA = 18
+COL_COM_ID_SERVICO = 19
+
 COL_SUB_ID = 1
 COL_SUB_NOME = 2
 COL_SUB_ETAPA = 3
@@ -216,6 +260,7 @@ COL_ETA_TOTAL = 6
 NOME_INTERVALO_ETAPAS = "Lista_Etapas"
 NOME_INTERVALO_SUBETAPAS = "Lista_Subetapas"
 NOME_INTERVALO_FINANCEIRO_DESCRICOES = "Lista_Financeiro_Descricoes"  # Etapa 4
+NOME_INTERVALO_SERVICOS = "Lista_Servicos"  # Etapa 6 — fonte do dropdown "Serviço" em Compras
 
 # Etapa 5.1 (Correção 1 — expansão real do Excel): cada aba de registro
 # passa a ser uma Tabela Excel estruturada nativa (`ws.tables`), em vez
@@ -230,6 +275,7 @@ NOME_TABELA_SERVICOS = "TabelaServicos"
 NOME_TABELA_FINANCEIRO = "TabelaFinanceiro"
 NOME_TABELA_PAGAMENTOS = "TabelaPagamentos"
 NOME_TABELA_ALTERACOES = "TabelaAlteracoes"
+NOME_TABELA_COMPRAS = "TabelaCompras"
 
 # Lista fechada do Status do Serviço (Etapa 3, Seção 18) — mesma fonte
 # (`StatusServico`) usada pelo Python, nunca digitada de novo à mão.
@@ -286,6 +332,7 @@ def construir_workbook(base: BaseDados | None = None) -> Workbook:
     _construir_aba_financeiro(wb, financeiro)
     _construir_aba_pagamentos(wb, list(base.pagamentos.values()), base.financeiro)
     _construir_aba_alteracoes(wb, alteracoes)
+    _construir_aba_compras(wb, list(base.compras.values()), base.fornecedores)
     _construir_aba_resumo_financeiro(wb)
     _construir_aba_base_dados(wb, id_obra=id_obra)
     _criar_intervalos_nomeados(wb)
@@ -578,6 +625,14 @@ def _construir_aba_servicos(wb: Workbook, servicos: list, subetapas_por_id: dict
     )
     ws.add_data_validation(dv_subetapa)
     dv_subetapa.add(f"C2:C{ultima_linha}")
+
+    # Etapa 6: Compras passa a vincular Serviço pelo nome (Descrição,
+    # mesmo padrão MATCH de Subetapa→Etapa) — mesma mitigação de AUD-18
+    # (Etapa 5.1) aplicada aqui para a nova coluna referenciada por nome.
+    _adicionar_validacao_nome_unico(
+        ws, coluna_nome=COL_SRV_DESCRICAO, ultima_linha=ultima_linha,
+        nome_tabela=NOME_TABELA_SERVICOS, titulo_coluna="Descrição",
+    )
 
     # Dropdown "Status" — domínio fechado homologado na Etapa 3 (Seção 18).
     dv_status = DataValidation(
@@ -1058,6 +1113,173 @@ def _construir_aba_alteracoes(wb: Workbook, alteracoes: list) -> None:
 
 
 # --------------------------------------------------------------------
+# Aba: Compras (Etapa 6) — registro de compras/pedidos, com vínculos
+# opcionais e independentes a Etapa/Subetapa/Serviço (Seção 5, regras
+# 5/6 da homologação: cada "item" é uma linha desta aba). Compra NÃO
+# cria lançamento financeiro nem altera Orçamento/Execução (regras
+# 2/7/8/9) — o único cálculo é a Variação contra o Serviço vinculado,
+# quando houver (ver `src/compras/calculos.py`).
+# --------------------------------------------------------------------
+def _construir_aba_compras(wb: Workbook, compras: list, fornecedores_por_id: dict) -> None:
+    ws = wb.create_sheet("Compras")
+    _escrever_cabecalho(ws, COLUNAS_COMPRAS)
+
+    ultima_linha = 1 + len(compras) + LINHAS_MODELO
+    prefixo = PREFIXOS_ID["COMPRAS"]
+
+    letra_valor = get_column_letter(COL_COM_VALOR)
+    letra_etapa = get_column_letter(COL_COM_ETAPA)
+    letra_subetapa = get_column_letter(COL_COM_SUBETAPA)
+    letra_servico = get_column_letter(COL_COM_SERVICO)
+    letra_id_servico = get_column_letter(COL_COM_ID_SERVICO)
+    letra_planejado = get_column_letter(COL_COM_PLANEJADO)
+
+    for r in range(2, ultima_linha + 1):
+        indice = r - 2
+        if indice < len(compras):
+            compra = compras[indice]
+            ws.cell(row=r, column=COL_COM_ID, value=compra.id)
+            ws.cell(row=r, column=COL_COM_DESCRICAO, value=compra.descricao)
+            # Fornecedores é módulo auxiliar sem aba própria nesta etapa
+            # (MOD_001) — o nome é escrito como texto simples a partir do
+            # cadastro em memória (`BaseDados.fornecedores`), sem dropdown
+            # validado (regra 3: "compra pode existir sem fornecedor
+            # cadastrado").
+            fornecedor = fornecedores_por_id.get(compra.id_fornecedor) if compra.id_fornecedor else None
+            ws.cell(row=r, column=COL_COM_FORNECEDOR, value=getattr(fornecedor, "nome_razao_social", None))
+            celula_data = ws.cell(row=r, column=COL_COM_DATA, value=compra.data_compra)
+            celula_data.number_format = "DD/MM/YYYY"
+            ws.cell(row=r, column=COL_COM_VALOR, value=compra.valor)
+            ws.cell(row=r, column=COL_COM_FORMA_PAGAMENTO, value=compra.forma_pagamento)
+            ws.cell(row=r, column=COL_COM_STATUS_APROVACAO, value=compra.status_aprovacao)
+            ws.cell(row=r, column=COL_COM_STATUS_ENTREGA, value=compra.status_entrega)
+            ws.cell(row=r, column=COL_COM_OBSERVACAO, value=compra.observacao)
+        else:
+            ws.cell(
+                row=r,
+                column=COL_COM_ID,
+                value=f'=IF($B{r}="","","{prefixo}-"&TEXT(ROW()-1,"0000"))',
+            )
+            ws.cell(row=r, column=COL_COM_DATA).number_format = "DD/MM/YYYY"
+
+        # Colunas SEMPRE calculadas por fórmula (linha literal ou não) —
+        # mesmo padrão de todas as demais abas (Etapa 3 em diante).
+        ws.cell(row=r, column=COL_COM_ID_OBRA, value=f'=IF($B{r}="","",Base_Dados!$B$2)')
+        ws.cell(
+            row=r,
+            column=COL_COM_ID_ETAPA,
+            value=(
+                f'=IF(${letra_etapa}{r}="","",'
+                f'INDEX(Etapas!$A:$A,MATCH(${letra_etapa}{r},Etapas!$B:$B,0)))'
+            ),
+        )
+        ws.cell(
+            row=r,
+            column=COL_COM_ID_SUBETAPA,
+            value=(
+                f'=IF(${letra_subetapa}{r}="","",'
+                f'INDEX(Subetapas!$A:$A,MATCH(${letra_subetapa}{r},Subetapas!$B:$B,0)))'
+            ),
+        )
+        ws.cell(
+            row=r,
+            column=COL_COM_ID_SERVICO,
+            value=(
+                f'=IF(${letra_servico}{r}="","",'
+                f'INDEX(Serviços!$A:$A,MATCH(${letra_servico}{r},Serviços!$B:$B,0)))'
+            ),
+        )
+        # Planejado = Valor Previsto do Serviço vinculado (via ID_Servico
+        # já resolvido acima), ou vazio quando não há vínculo a Serviço —
+        # os vínculos a Etapa/Subetapa são só informativos e não
+        # alimentam este cálculo (ver docstring de `src/compras/calculos.py`).
+        ws.cell(
+            row=r,
+            column=COL_COM_PLANEJADO,
+            value=(
+                f'=IF(${letra_id_servico}{r}="","",'
+                f'INDEX(Serviços!${get_column_letter(COL_SRV_VALOR_PREVISTO)}:'
+                f'${get_column_letter(COL_SRV_VALOR_PREVISTO)},'
+                f'MATCH(${letra_id_servico}{r},Serviços!$A:$A,0)))'
+            ),
+        )
+        # Variação R$ = Compra − Planejado; Variação % trata Planejado=0
+        # como "N/D" (nunca 0%) — mesmo padrão de % Orçamento Consumido
+        # (REG-031).
+        ws.cell(
+            row=r,
+            column=COL_COM_VARIACAO_REAIS,
+            value=f'=IF(OR(${letra_planejado}{r}="",${letra_valor}{r}=""),"",${letra_valor}{r}-${letra_planejado}{r})',
+        )
+        ws.cell(
+            row=r,
+            column=COL_COM_VARIACAO_PERCENTUAL,
+            value=(
+                f'=IF(OR(${letra_planejado}{r}="",${letra_valor}{r}=""),"",'
+                f'IF(${letra_planejado}{r}=0,"N/D",'
+                f'${get_column_letter(COL_COM_VARIACAO_REAIS)}{r}/${letra_planejado}{r}))'
+            ),
+        )
+
+    # Dropdowns "Etapa"/"Subetapa"/"Serviço" — todos opcionais e
+    # independentes (regra 6); nomes amigáveis, nunca IDs.
+    dv_etapa = DataValidation(
+        type="list", formula1=NOME_INTERVALO_ETAPAS, allow_blank=True,
+        showErrorMessage=True, errorTitle="Etapa inválida",
+        error="Selecione uma Etapa já cadastrada na aba Etapas.",
+    )
+    ws.add_data_validation(dv_etapa)
+    dv_etapa.add(f"I2:I{ultima_linha}")
+
+    dv_subetapa = DataValidation(
+        type="list", formula1=NOME_INTERVALO_SUBETAPAS, allow_blank=True,
+        showErrorMessage=True, errorTitle="Subetapa inválida",
+        error="Selecione uma Subetapa já cadastrada na aba Subetapas.",
+    )
+    ws.add_data_validation(dv_subetapa)
+    dv_subetapa.add(f"J2:J{ultima_linha}")
+
+    dv_servico = DataValidation(
+        type="list", formula1=NOME_INTERVALO_SERVICOS, allow_blank=True,
+        showErrorMessage=True, errorTitle="Serviço inválido",
+        error="Selecione um Serviço já cadastrado na aba Serviços.",
+    )
+    ws.add_data_validation(dv_servico)
+    dv_servico.add(f"K2:K{ultima_linha}")
+
+    # Valor: numérico e não negativo (mesmo padrão de Financeiro/Serviços).
+    dv_valor = DataValidation(
+        type="decimal", operator="greaterThanOrEqual", formula1="0", allow_blank=True,
+        showErrorMessage=True, errorTitle="Valor inválido",
+        error="Informe um número maior ou igual a zero.",
+    )
+    ws.add_data_validation(dv_valor)
+    dv_valor.add(f"E2:E{ultima_linha}")
+
+    # Forma de Pagamento, Status de Aprovação e Status de Entrega: texto
+    # livre, SEM dropdown — nenhum domínio fechado foi homologado para
+    # esses 3 campos (DAD_001, entidade COMPRAS, continuam [H]); criar
+    # uma lista fechada aqui seria inventar uma regra de negócio.
+
+    for r in range(2, ultima_linha + 1):
+        for coluna in (COL_COM_VALOR, COL_COM_PLANEJADO, COL_COM_VARIACAO_REAIS):
+            ws.cell(row=r, column=coluna).number_format = FORMATO_MOEDA_BR
+        ws.cell(row=r, column=COL_COM_VARIACAO_PERCENTUAL).number_format = "0.00%"
+
+    for indice_coluna, (_titulo, _largura, _oculta, calculada) in enumerate(COLUNAS_COMPRAS, start=1):
+        if not calculada:
+            continue
+        for r in range(2, ultima_linha + 1):
+            celula = ws.cell(row=r, column=indice_coluna)
+            celula.fill = PREENCHIMENTO_CALCULADO
+            celula.font = FONTE_CALCULADA
+
+    _aplicar_bordas(ws, ultima_linha, len(COLUNAS_COMPRAS))
+    _registrar_tabela(ws, nome=NOME_TABELA_COMPRAS, ultima_linha=ultima_linha, n_colunas=len(COLUNAS_COMPRAS))
+    ws.freeze_panes = "A2"
+
+
+# --------------------------------------------------------------------
 # Aba técnica oculta: Base_Dados
 # --------------------------------------------------------------------
 def _construir_aba_base_dados(wb: Workbook, *, id_obra: str) -> None:
@@ -1124,6 +1346,9 @@ def _criar_intervalos_nomeados(wb: Workbook) -> None:
     )
     wb.defined_names[NOME_INTERVALO_FINANCEIRO_DESCRICOES] = DefinedName(
         NOME_INTERVALO_FINANCEIRO_DESCRICOES, attr_text=f"{NOME_TABELA_FINANCEIRO}[Descrição]"
+    )
+    wb.defined_names[NOME_INTERVALO_SERVICOS] = DefinedName(
+        NOME_INTERVALO_SERVICOS, attr_text=f"{NOME_TABELA_SERVICOS}[Descrição]"
     )
 
 

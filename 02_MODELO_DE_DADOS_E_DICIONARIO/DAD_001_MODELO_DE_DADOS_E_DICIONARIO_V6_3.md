@@ -1,4 +1,4 @@
-# Modelo de Dados e Dicionário — V6.3 (Revisão 9 — Correções Pós-Auditoria)
+# Modelo de Dados e Dicionário — V6.3 (Revisão 10 — Compras)
 
 **Data da Revisão 1:** 2026-09-16 — `AUDITORIA_PRE_CONSTRUCAO_V1` identificou ausência de dicionário de dados executável. A Revisão 1 substituiu a versão anterior (3 linhas) por uma especificação estruturada por entidade.
 **Motivo da Revisão 2:** o responsável pelo projeto homologou a **Opção B — Vincular Aporte ao Orçamento** (ver `05_REGRAS_DE_NEGOCIO/REG_001`, REG-006/REG-017). A Revisão 2 ajustou apenas as entidades OBRAS e FINANCEIRO.
@@ -9,6 +9,7 @@
 **Motivo da Revisão 7:** o responsável pelo projeto homologou o módulo **FINANCEIRO** (Etapa 4 de construção, 2026-09-17; ver `05_REGRAS_DE_NEGOCIO/REG_001`, REG-004/REG-005/REG-018/REG-029 a REG-032): a entidade FINANCEIRO ganha campos novos (Descrição, Fornecedor opcional, Compra opcional, Observação, Situação) e o domínio "Tipo" é fechado com 4 valores (Aporte, Outras Entradas, Despesa/Custo, Outras Saídas); nova entidade **PAGAMENTOS** (14ª entidade do modelo), separando a baixa financeira do reconhecimento do custo. Esta revisão ajusta a entidade FINANCEIRO e acrescenta PAGAMENTOS; as demais 12 entidades não foram alteradas.
 **Motivo da Revisão 8:** o responsável pelo projeto homologou o módulo **ALTERAÇÕES** (Etapa 5 de construção, 2026-09-17; ver `05_REGRAS_DE_NEGOCIO/REG_001`, REG-012/REG-017): a entidade ALTERAÇÕES ganha domínio fechado nos campos "Tipo de Alteração" (Escopo/Prazo/Orçamento) e "Status de Aprovação" (Pendente/Aprovada/Rejeitada), resolvendo os dois campos antes [H]/[P]; "Impacto no Orçamento"/"Impacto no Prazo" passam a aceitar valor negativo explicitamente (delta com sinal). Esta revisão ajusta apenas a entidade ALTERAÇÕES; as demais 13 entidades não foram alteradas.
 **Motivo da Revisão 9 (Etapa 5.1 — Correções Pós-Auditoria, 2026-09-19):** uma auditoria técnica completa pós-Etapa 5 encontrou duas correções documentais: (a) o domínio de "Status de Aprovação" de ALTERAÇÕES registrado na Revisão 8 estava divergente da decisão pretendida pelo responsável pelo projeto — corrigido de 3 para **4 valores: Em análise, Aprovada, Rejeitada, Cancelada** (ver `05_REGRAS_DE_NEGOCIO/REG_001`, REG-012, Revisão 9); (b) a seção "Regra sobre IDs" e os campos `ID_*` de 11 das 14 entidades ainda estavam marcados **[H]**, apesar de o formato `PREFIXO-0000` já estar homologado desde a Etapa 1 e implementado em `config/ids_config.py` — mesmo padrão já aplicado a `ID_Lancamento`/`ID_Pagamento`/`ID_Alteracao` nas Revisões 7/8. Esta revisão corrige a seção "Regra sobre IDs", os 11 campos `ID_*` ainda [H], a entidade ALTERAÇÕES (campo Status de Aprovação), e limpa 2 entradas já resolvidas mas nunca removidas da lista de "Domínios pendentes de homologação". Nenhuma outra entidade foi alterada.
+**Motivo da Revisão 10 (Etapa 6 — Compras, 2026-09-19):** o responsável pelo projeto homologou o módulo **COMPRAS** (ver `05_REGRAS_DE_NEGOCIO/REG_001`, REG-010): a entidade ganha 4 campos novos (Descrição — obrigatório, preenche lacuna do modelo original; ID_Etapa e ID_Subetapa — opcionais, informativos; Observação — opcional) e passa de [P] para [D]; Planejado/Variação R$/Variação % passam a existir como campos calculados derivados (não são colunas digitáveis). Esta revisão ajusta apenas a entidade COMPRAS; as demais 13 entidades não foram alteradas.
 
 ## Legenda de status
 
@@ -201,18 +202,29 @@ OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO
 
 ## ENTIDADE: COMPRAS
 
-**Existência no escopo V1:** [D] — AGENTS.md §12, MOD_001_V6_3.
-**Finalidade (proposta):** registro de pedidos/compras de materiais e serviços junto a fornecedores. [P]
-**1 linha representa:** uma compra/pedido. [P]
+**Existência no escopo V1:** [D] — AGENTS.md §12, MOD_001_V6_3 (módulo **principal**, não auxiliar).
+**Finalidade:** registro de compras/pedidos de materiais e serviços, com Variação contra o Serviço/Orçamento vinculado (quando houver). [D] a partir da Etapa 6 — antes [P].
+**1 linha representa:** uma compra — no vocabulário da homologação da Etapa 6, cada linha já é um "item"; múltiplos itens de um mesmo pedido são múltiplas linhas (mesma granularidade de FINANCEIRO). [D]
 
 | Campo | Tipo | Obrigatório | Origem | Calc./Digitado | Relacionamento | Observação | Status |
 |---|---|---|---|---|---|---|---|
-| ID_Compra | Texto/código | Sim | Sistema | Calculado | FK → OBRAS, FORNECEDORES, SERVIÇOS/ORÇAMENTO | Prefixo `COM-` já homologado desde a Etapa 1 (`config/ids_config.py`) — corrigido de [H] para [D] na Revisão 9; módulo COMPRAS em si ainda não construído | [D] |
+| ID_Compra | Texto/código | Sim | Sistema | Calculado | FK → OBRAS, FORNECEDORES, ETAPAS, SUBETAPAS, SERVIÇOS/ORÇAMENTO | Prefixo `COM-` já homologado desde a Etapa 1 (`config/ids_config.py`) | [D] |
+| Descrição | Texto | Sim | Usuário | Digitado | — | **Novo na Etapa 6** — o que foi comprado; preenche uma lacuna do modelo original (não havia nenhum campo para isso) | [D] |
+| ID_Fornecedor | FK | Não | Usuário | Digitado | FK opcional → FORNECEDORES | Regra 3 da homologação: "uma compra pode existir sem fornecedor cadastrado". No Excel, escrito como texto simples (Fornecedores é módulo auxiliar, sem aba própria nesta etapa) — sem dropdown validado | [D] |
 | Data da Compra | Data | Sim | Usuário | Digitado | — | — | [P] |
-| Valor | Moeda | Sim | Usuário | Digitado | — | — | [P] |
-| Forma de Pagamento | Domínio | Não | Usuário | Digitado | — | Não definido | [H] |
-| Status de Aprovação | Domínio | Sim | Sistema | Calculado | — | **Fluxo de aprovação não definido em nenhuma fonte** | [H] |
-| Status de Entrega | Domínio | Não | Usuário | Digitado | — | Não homologado | [H] |
+| Valor | Moeda | Sim | Usuário | Digitado | Base do cálculo de Variação (REG-010) | **[D] HOMOLOGADO na Etapa 6:** sempre não negativo (mesmo padrão de FINANCEIRO/PAGAMENTOS) | [D] |
+| Forma de Pagamento | Domínio | Não | Usuário | Digitado | — | Não homologado — texto livre | [H] |
+| Status de Aprovação | Domínio | Não | Usuário | Digitado | — | **Fluxo de aprovação não definido em nenhuma fonte** — texto livre | [H] |
+| Status de Entrega | Domínio | Não | Usuário | Digitado | — | Não homologado — texto livre | [H] |
+| ID_Etapa | FK | Não | Usuário | Digitado | FK opcional → ETAPAS | **Novo na Etapa 6** — vínculo informativo/de rastreabilidade, independente de ID_Subetapa e ID_Servico; NÃO alimenta a Variação | [D] |
+| ID_Subetapa | FK | Não | Usuário | Digitado | FK opcional → SUBETAPAS | **Novo na Etapa 6** — mesma regra do campo acima | [D] |
+| ID_Servico | FK | Não | Usuário | Digitado | FK opcional → SERVIÇOS/ORÇAMENTO | Único vínculo que alimenta a Variação (REG-010) — quando ausente, Planejado/Variação são "não calculável" | [D] |
+| Observação | Texto | Não | Usuário | Digitado | — | **Novo na Etapa 6** (mesmo padrão de FINANCEIRO/ALTERAÇÕES) | [P] |
+
+**Campos calculados derivados (não são colunas digitáveis — vivem em `src/compras/calculos.py` e nas colunas L/M/N da aba Excel):**
+- **Planejado** = Valor Previsto (REG-026) do Serviço vinculado via ID_Servico; `None`/vazio quando não há vínculo.
+- **Variação R$** = Valor da Compra − Planejado.
+- **Variação %** = Variação R$ / Planejado × 100; `None`/"N/D" quando Planejado é ausente ou igual a zero (nunca 0%) — REG-010.
 
 ---
 
@@ -481,3 +493,12 @@ Em 2026-09-19, uma auditoria técnica completa pós-Etapa 5 ("ETAPA 5.1 — Corr
 **Também corrigido nesta rodada, sem alterar nenhuma entidade nem campo deste documento:** o gerador Excel (`src/excel/construtor_workbook.py`) passou a usar Tabelas Excel estruturadas para as 6 entidades de registro (Etapas, Subetapas, Serviços, Financeiro, Pagamentos, Alterações), eliminando o risco de fórmulas de totais ignorarem silenciosamente registros além do buffer inicial de linhas — puramente técnico, sem mudança de modelo de dados. Ver `dados/GESTAO_DE_OBRAS_OBRA_MODELO_V5.xlsx`.
 
 **Preservado, não reaberto:** todas as decisões das Revisões 1–8. **Permanecem [H], não inventados nesta rodada:** sobrepagamento (Total Pago > Custo Reconhecido em PAGAMENTOS — ver `05_REGRAS_DE_NEGOCIO/REG_001`, REG-029); domínio de Situação/cancelamento em FINANCEIRO; mecanismo técnico de restrição de visibilidade por perfil; caso-limite de sequencial de ID > 9999.
+
+## Registro de homologação — Revisão 10
+
+Em 2026-09-19, o responsável pelo projeto homologou o módulo **COMPRAS** ("Etapa 6" de construção), refletido em:
+- **COMPRAS** — passa de [P] (proposta) para [D]; 4 campos novos (Descrição, ID_Etapa, ID_Subetapa, Observação); Valor passa a ser validado como sempre não negativo; Planejado/Variação R$/Variação % documentados como campos calculados derivados (REG-010).
+- **Cálculos no nível da Compra (não são colunas de nenhuma entidade — vivem em `src/compras/calculos.py` e na aba Excel "Compras"):** Planejado, Variação R$, Variação %.
+- **Decisão de design (Seção 8 da homologação — "a aba funcional deve ser COMPRAS", sem nomenclatura concorrente):** "múltiplos itens" de uma Compra são implementados como múltiplos registros `Compra` (mesma granularidade de FINANCEIRO) — não foi criada uma entidade/aba "Itens de Compra" separada.
+
+**Preservado, não reaberto:** todas as decisões das Revisões 1–9. **Permanecem [H]/fora de escopo, não inventados nesta rodada:** domínio fechado de Forma de Pagamento, Status de Aprovação (fluxo) e Status de Entrega de COMPRAS; módulo FORNECEDORES com interface Excel própria (é módulo auxiliar — MOD_001; Fornecedor aparece em Compras como texto simples nesta etapa); sobrepagamento (PAGAMENTOS); domínio de Situação/cancelamento em FINANCEIRO; mecanismo técnico de restrição de visibilidade por perfil.
