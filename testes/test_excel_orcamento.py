@@ -144,11 +144,14 @@ def test_total_previsto_da_etapa_soma_totais_das_subetapas(tmp_path):
 
 
 def test_orcamento_inicial_soma_os_totais_das_etapas(tmp_path):
+    """Etapa 5.1 (AUD-21): referência estruturada de Tabela
+    (`TabelaEtapas[Total Previsto (Subetapas)]`), sem range fixo de
+    linhas — soma todas as Etapas cadastradas, sem teto numérico."""
     caminho = tmp_path / "v.xlsx"
     construir_workbook(BaseDados()).save(caminho)
     ws_ini = openpyxl.load_workbook(caminho)["Início"]
     formula = ws_ini.cell(row=8, column=2).value
-    assert formula.startswith("=SUM(Etapas!$F$2:$F$")
+    assert formula == "=SUM(TabelaEtapas[Total Previsto (Subetapas)])"
 
 
 def test_totais_nao_somam_aportes_alteracoes_ou_custo_realizado(tmp_path):
@@ -196,10 +199,16 @@ def test_colunas_calculadas_tem_estilo_visualmente_distinto_de_entrada(tmp_path)
 
 
 def test_autofilter_existe_na_aba_servicos(tmp_path):
+    """Etapa 5.1: a aba passou a ser uma Tabela Excel estruturada
+    (`TabelaServicos`), que já inclui seu próprio filtro automático
+    cobrindo o mesmo intervalo — por isso o filtro agora vive em
+    `ws.tables[...].autoFilter`, não mais em `ws.auto_filter`."""
     caminho = tmp_path / "v.xlsx"
     construir_workbook(BaseDados()).save(caminho)
     ws = openpyxl.load_workbook(caminho)["Serviços"]
-    assert ws.auto_filter.ref is not None
+    tabela = ws.tables["TabelaServicos"]
+    assert tabela.autoFilter is not None
+    assert tabela.autoFilter.ref == tabela.ref
 
 
 def test_nenhuma_formatacao_condicional_de_alerta_foi_criada(tmp_path):

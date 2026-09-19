@@ -59,6 +59,7 @@ from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.worksheet import Worksheet
 
 from config.ids_config import PREFIXOS_ID
@@ -216,6 +217,20 @@ NOME_INTERVALO_ETAPAS = "Lista_Etapas"
 NOME_INTERVALO_SUBETAPAS = "Lista_Subetapas"
 NOME_INTERVALO_FINANCEIRO_DESCRICOES = "Lista_Financeiro_Descricoes"  # Etapa 4
 
+# Etapa 5.1 (Correção 1 — expansão real do Excel): cada aba de registro
+# passa a ser uma Tabela Excel estruturada nativa (`ws.tables`), em vez
+# de um intervalo fixo de linhas. Isso faz o próprio Excel estender
+# fórmulas, validações (dropdowns) e formatação quando o Operador digita
+# na linha logo abaixo da tabela — sem depender de nenhum teto numérico
+# de linhas (ver auditoria pós-Etapa 5, AUD-20/AUD-21). `LINHAS_MODELO`
+# continua existindo só como o buffer inicial pré-formatado de fábrica.
+NOME_TABELA_ETAPAS = "TabelaEtapas"
+NOME_TABELA_SUBETAPAS = "TabelaSubetapas"
+NOME_TABELA_SERVICOS = "TabelaServicos"
+NOME_TABELA_FINANCEIRO = "TabelaFinanceiro"
+NOME_TABELA_PAGAMENTOS = "TabelaPagamentos"
+NOME_TABELA_ALTERACOES = "TabelaAlteracoes"
+
 # Lista fechada do Status do Serviço (Etapa 3, Seção 18) — mesma fonte
 # (`StatusServico`) usada pelo Python, nunca digitada de novo à mão.
 _ROTULOS_STATUS_SERVICO = [s.rotulo for s in StatusServico]
@@ -258,31 +273,22 @@ def construir_workbook(base: BaseDados | None = None) -> Workbook:
     obra = base.obras.get(id_obra)
 
     etapas = list(base.etapas.values())
-    ultima_linha_etapas = 1 + len(etapas) + LINHAS_MODELO
-
     financeiro = list(base.financeiro.values())
-    ultima_linha_financeiro = 1 + len(financeiro) + LINHAS_MODELO
-
     alteracoes = list(base.alteracoes.values())
-    ultima_linha_alteracoes = 1 + len(alteracoes) + LINHAS_MODELO
 
     wb = Workbook()
     wb.remove(wb.active)  # remove a aba padrão "Sheet"
 
-    _construir_aba_inicio(wb, obra=obra, ultima_linha_etapas=ultima_linha_etapas)
+    _construir_aba_inicio(wb, obra=obra)
     _construir_aba_etapas(wb, etapas, id_obra=id_obra)
     _construir_aba_subetapas(wb, list(base.subetapas.values()), base.etapas)
     _construir_aba_servicos(wb, list(base.servicos.values()), base.subetapas)
     _construir_aba_financeiro(wb, financeiro)
     _construir_aba_pagamentos(wb, list(base.pagamentos.values()), base.financeiro)
     _construir_aba_alteracoes(wb, alteracoes)
-    _construir_aba_resumo_financeiro(
-        wb,
-        ultima_linha_financeiro=ultima_linha_financeiro,
-        ultima_linha_alteracoes=ultima_linha_alteracoes,
-    )
+    _construir_aba_resumo_financeiro(wb)
     _construir_aba_base_dados(wb, id_obra=id_obra)
-    _criar_intervalos_nomeados(wb, ultima_linha_financeiro=ultima_linha_financeiro)
+    _criar_intervalos_nomeados(wb)
 
     wb.active = 0  # abre na aba "Início"
     return wb
@@ -291,7 +297,7 @@ def construir_workbook(base: BaseDados | None = None) -> Workbook:
 # --------------------------------------------------------------------
 # Aba: Início (Obra)
 # --------------------------------------------------------------------
-def _construir_aba_inicio(wb: Workbook, *, obra, ultima_linha_etapas: int) -> None:
+def _construir_aba_inicio(wb: Workbook, *, obra) -> None:
     """ENTIDADE: OBRAS — formulário vertical (Etapa 2, Seção 5)."""
     ws = wb.create_sheet("Início")
     ws.sheet_view.showGridLines = False
@@ -341,13 +347,16 @@ def _construir_aba_inicio(wb: Workbook, *, obra, ultima_linha_etapas: int) -> No
     # totais por Etapa (Etapas!Total Previsto) — NÃO inclui Aportes,
     # Alterações, Custo Realizado ou Saldo de Caixa (Seção 15/16/17: essa
     # lógica de Orçamento Vigente pertence a uma etapa futura).
+    # Etapa 5.1 (Correção 1): referência estruturada à Tabela de Etapas,
+    # em vez de um range fixo $2:$N — soma TODAS as Etapas cadastradas,
+    # sem teto numérico de linhas (AUD-21).
     celula_rotulo = ws.cell(row=linha, column=1, value="Orçamento Inicial (Previsto)")
     celula_rotulo.font = FONTE_ROTULO_FORM
-    letra_total_etapas = get_column_letter(COL_ETA_TOTAL)
+    titulo_total_etapas = COLUNAS_ETAPAS[COL_ETA_TOTAL - 1][0]
     celula_valor = ws.cell(
         row=linha,
         column=2,
-        value=f"=SUM(Etapas!${letra_total_etapas}$2:${letra_total_etapas}${ultima_linha_etapas})",
+        value=f"=SUM({NOME_TABELA_ETAPAS}[{titulo_total_etapas}])",
     )
     celula_valor.number_format = "#,##0.00"
     celula_valor.border = BORDA_CELULA
@@ -407,13 +416,16 @@ def _construir_aba_etapas(wb: Workbook, etapas: list, *, id_obra: str) -> None:
     ws.add_data_validation(dv_ordem)
     dv_ordem.add(f"C2:C{ultima_linha}")
 
+    _adicionar_validacao_nome_unico(ws, coluna_nome=COL_ETA_NOME, ultima_linha=ultima_linha, nome_tabela=NOME_TABELA_ETAPAS)
+
     for r in range(2, ultima_linha + 1):
         ws.cell(row=r, column=COL_ETA_TOTAL).number_format = "#,##0.00"
         ws.cell(row=r, column=COL_ETA_TOTAL).fill = PREENCHIMENTO_CALCULADO
         ws.cell(row=r, column=COL_ETA_TOTAL).font = FONTE_CALCULADA
 
     _aplicar_bordas(ws, ultima_linha, len(COLUNAS_ETAPAS))
-    _aplicar_filtro_e_congelamento(ws, ultima_linha, len(COLUNAS_ETAPAS))
+    _registrar_tabela(ws, nome=NOME_TABELA_ETAPAS, ultima_linha=ultima_linha, n_colunas=len(COLUNAS_ETAPAS))
+    ws.freeze_panes = "A2"
 
 
 # --------------------------------------------------------------------
@@ -475,13 +487,16 @@ def _construir_aba_subetapas(wb: Workbook, subetapas: list, etapas_por_id: dict)
     ws.add_data_validation(dv_etapa)
     dv_etapa.add(f"C2:C{ultima_linha}")
 
+    _adicionar_validacao_nome_unico(ws, coluna_nome=COL_SUB_NOME, ultima_linha=ultima_linha, nome_tabela=NOME_TABELA_SUBETAPAS)
+
     for r in range(2, ultima_linha + 1):
         ws.cell(row=r, column=COL_SUB_TOTAL).number_format = "#,##0.00"
         ws.cell(row=r, column=COL_SUB_TOTAL).fill = PREENCHIMENTO_CALCULADO
         ws.cell(row=r, column=COL_SUB_TOTAL).font = FONTE_CALCULADA
 
     _aplicar_bordas(ws, ultima_linha, len(COLUNAS_SUBETAPAS))
-    _aplicar_filtro_e_congelamento(ws, ultima_linha, len(COLUNAS_SUBETAPAS))
+    _registrar_tabela(ws, nome=NOME_TABELA_SUBETAPAS, ultima_linha=ultima_linha, n_colunas=len(COLUNAS_SUBETAPAS))
+    ws.freeze_panes = "A2"
 
 
 # --------------------------------------------------------------------
@@ -625,7 +640,8 @@ def _construir_aba_servicos(wb: Workbook, servicos: list, subetapas_por_id: dict
             celula.font = FONTE_CALCULADA
 
     _aplicar_bordas(ws, ultima_linha, len(COLUNAS_SERVICOS))
-    _aplicar_filtro_e_congelamento(ws, ultima_linha, len(COLUNAS_SERVICOS))
+    _registrar_tabela(ws, nome=NOME_TABELA_SERVICOS, ultima_linha=ultima_linha, n_colunas=len(COLUNAS_SERVICOS))
+    ws.freeze_panes = "A2"
 
 
 # --------------------------------------------------------------------
@@ -735,6 +751,11 @@ def _construir_aba_financeiro(wb: Workbook, lancamentos: list) -> None:
     ws.add_data_validation(dv_valor)
     dv_valor.add(f"E2:E{ultima_linha}")
 
+    _adicionar_validacao_nome_unico(
+        ws, coluna_nome=COL_FIN_DESCRICAO, ultima_linha=ultima_linha,
+        nome_tabela=NOME_TABELA_FINANCEIRO, titulo_coluna="Descrição",
+    )
+
     for r in range(2, ultima_linha + 1):
         for coluna in (
             COL_FIN_VALOR,
@@ -754,7 +775,8 @@ def _construir_aba_financeiro(wb: Workbook, lancamentos: list) -> None:
             celula.font = FONTE_CALCULADA
 
     _aplicar_bordas(ws, ultima_linha, len(COLUNAS_FINANCEIRO))
-    _aplicar_filtro_e_congelamento(ws, ultima_linha, len(COLUNAS_FINANCEIRO))
+    _registrar_tabela(ws, nome=NOME_TABELA_FINANCEIRO, ultima_linha=ultima_linha, n_colunas=len(COLUNAS_FINANCEIRO))
+    ws.freeze_panes = "A2"
 
 
 # --------------------------------------------------------------------
@@ -830,16 +852,15 @@ def _construir_aba_pagamentos(wb: Workbook, pagamentos: list, financeiro_por_id:
         ws.cell(row=r, column=COL_PAG_VALOR).number_format = FORMATO_MOEDA_BR
 
     _aplicar_bordas(ws, ultima_linha, len(COLUNAS_PAGAMENTOS))
-    _aplicar_filtro_e_congelamento(ws, ultima_linha, len(COLUNAS_PAGAMENTOS))
+    _registrar_tabela(ws, nome=NOME_TABELA_PAGAMENTOS, ultima_linha=ultima_linha, n_colunas=len(COLUNAS_PAGAMENTOS))
+    ws.freeze_panes = "A2"
 
 
 # --------------------------------------------------------------------
 # Aba: Resumo Financeiro (Etapa 4, Seção 28) — resumo OPERACIONAL, não o
 # Dashboard Gerencial definitivo (Seção 28/30)
 # --------------------------------------------------------------------
-def _construir_aba_resumo_financeiro(
-    wb: Workbook, *, ultima_linha_financeiro: int, ultima_linha_alteracoes: int
-) -> None:
+def _construir_aba_resumo_financeiro(wb: Workbook) -> None:
     ws = wb.create_sheet("Resumo Financeiro")
     ws.sheet_view.showGridLines = False
     ws.column_dimensions["A"].width = 34
@@ -851,16 +872,19 @@ def _construir_aba_resumo_financeiro(
     ws.cell(row=1, column=2).fill = PREENCHIMENTO_CABECALHO
     ws.row_dimensions[1].height = 24
 
-    letra_g = get_column_letter(COL_FIN_APORTE)
-    letra_h = get_column_letter(COL_FIN_CUSTO_REALIZADO)
-    letra_i = get_column_letter(COL_FIN_TOTAL_PAGO)
-    letra_j = get_column_letter(COL_FIN_A_PAGAR)
-    letra_b_tipo = get_column_letter(COL_FIN_TIPO)
-    letra_e_valor = get_column_letter(COL_FIN_VALOR)
-    ul = ultima_linha_financeiro
-    letra_impacto_alt = get_column_letter(COL_ALT_IMPACTO_ORCAMENTO)
-    letra_status_alt = get_column_letter(COL_ALT_STATUS)
-    ul_alt = ultima_linha_alteracoes
+    # Etapa 5.1 (Correção 1, AUD-21): todos os totais abaixo usam
+    # referência estruturada à Tabela de Financeiro/Alterações
+    # (`TabelaX[Coluna]`), que sempre cobre exatamente as linhas de
+    # dado da tabela — sem teto numérico de linhas e sem risco de
+    # ignorar silenciosamente registros além de um buffer inicial.
+    titulo_aporte = COLUNAS_FINANCEIRO[COL_FIN_APORTE - 1][0]
+    titulo_custo = COLUNAS_FINANCEIRO[COL_FIN_CUSTO_REALIZADO - 1][0]
+    titulo_pago = COLUNAS_FINANCEIRO[COL_FIN_TOTAL_PAGO - 1][0]
+    titulo_a_pagar = COLUNAS_FINANCEIRO[COL_FIN_A_PAGAR - 1][0]
+    titulo_tipo_fin = COLUNAS_FINANCEIRO[COL_FIN_TIPO - 1][0]
+    titulo_valor_fin = COLUNAS_FINANCEIRO[COL_FIN_VALOR - 1][0]
+    titulo_impacto_alt = COLUNAS_ALTERACOES[COL_ALT_IMPACTO_ORCAMENTO - 1][0]
+    titulo_status_alt = COLUNAS_ALTERACOES[COL_ALT_STATUS - 1][0]
 
     linhas_moeda: list[int] = []
 
@@ -879,12 +903,12 @@ def _construir_aba_resumo_financeiro(
     linha_orcamento_inicial = linha_atual
     _linha("Orçamento Inicial (Previsto)", "=Início!$B$8")
     linha_aportes = linha_atual
-    _linha("Aportes", f"=SUM(Financeiro!${letra_g}$2:${letra_g}${ul})")
+    _linha("Aportes", f"=SUM({NOME_TABELA_FINANCEIRO}[{titulo_aporte}])")
     linha_alteracoes_aprovadas = linha_atual
     _linha(
         "Alterações Aprovadas",
-        f'=SUMIFS(Alterações!${letra_impacto_alt}$2:${letra_impacto_alt}${ul_alt},'
-        f'Alterações!${letra_status_alt}$2:${letra_status_alt}${ul_alt},"{_ROTULO_APROVADA}")',
+        f'=SUMIFS({NOME_TABELA_ALTERACOES}[{titulo_impacto_alt}],'
+        f'{NOME_TABELA_ALTERACOES}[{titulo_status_alt}],"{_ROTULO_APROVADA}")',
     )
     linha_orcamento_vigente = linha_atual
     _linha(
@@ -892,7 +916,7 @@ def _construir_aba_resumo_financeiro(
         f"=B{linha_orcamento_inicial}+B{linha_aportes}+B{linha_alteracoes_aprovadas}",
     )
     linha_custo = linha_atual
-    _linha("Custo Realizado", f"=SUM(Financeiro!${letra_h}$2:${letra_h}${ul})")
+    _linha("Custo Realizado", f"=SUM({NOME_TABELA_FINANCEIRO}[{titulo_custo}])")
     linha_saldo_orc = linha_atual
     _linha("Saldo Orçamentário", f"=B{linha_orcamento_vigente}-B{linha_custo}")
     _linha(
@@ -904,24 +928,24 @@ def _construir_aba_resumo_financeiro(
     linha_outras_entradas = linha_atual
     _linha(
         "Outras Entradas",
-        f'=SUMIF(Financeiro!${letra_b_tipo}$2:${letra_b_tipo}${ul},"{_ROTULO_OUTRAS_ENTRADAS}",'
-        f'Financeiro!${letra_e_valor}$2:${letra_e_valor}${ul})',
+        f'=SUMIF({NOME_TABELA_FINANCEIRO}[{titulo_tipo_fin}],"{_ROTULO_OUTRAS_ENTRADAS}",'
+        f'{NOME_TABELA_FINANCEIRO}[{titulo_valor_fin}])',
     )
     linha_outras_saidas = linha_atual
     _linha(
         "Outras Saídas",
-        f'=SUMIF(Financeiro!${letra_b_tipo}$2:${letra_b_tipo}${ul},"{_ROTULO_OUTRAS_SAIDAS}",'
-        f'Financeiro!${letra_e_valor}$2:${letra_e_valor}${ul})',
+        f'=SUMIF({NOME_TABELA_FINANCEIRO}[{titulo_tipo_fin}],"{_ROTULO_OUTRAS_SAIDAS}",'
+        f'{NOME_TABELA_FINANCEIRO}[{titulo_valor_fin}])',
     )
     linha_total_entradas = linha_atual
     _linha("Total de Entradas", f"=B{linha_aportes}+B{linha_outras_entradas}")
     linha_total_pago = linha_atual
-    _linha("Total Pago", f"=SUM(Financeiro!${letra_i}$2:${letra_i}${ul})")
+    _linha("Total Pago", f"=SUM({NOME_TABELA_FINANCEIRO}[{titulo_pago}])")
     linha_total_saidas = linha_atual
     _linha("Total de Saídas", f"=B{linha_total_pago}+B{linha_outras_saidas}")
     linha_saldo_caixa = linha_atual
     _linha("Saldo de Caixa", f"=B{linha_total_entradas}-B{linha_total_saidas}")
-    _linha("Total A Pagar", f"=SUM(Financeiro!${letra_j}$2:${letra_j}${ul})")
+    _linha("Total A Pagar", f"=SUM({NOME_TABELA_FINANCEIRO}[{titulo_a_pagar}])")
     linha_estouro = linha_atual
     _linha(
         "Estouro de Orçamento (indicador Operador-only)",
@@ -1029,7 +1053,8 @@ def _construir_aba_alteracoes(wb: Workbook, alteracoes: list) -> None:
         ws.cell(row=r, column=COL_ALT_IMPACTO_ORCAMENTO).number_format = FORMATO_MOEDA_BR
 
     _aplicar_bordas(ws, ultima_linha, len(COLUNAS_ALTERACOES))
-    _aplicar_filtro_e_congelamento(ws, ultima_linha, len(COLUNAS_ALTERACOES))
+    _registrar_tabela(ws, nome=NOME_TABELA_ALTERACOES, ultima_linha=ultima_linha, n_colunas=len(COLUNAS_ALTERACOES))
+    ws.freeze_panes = "A2"
 
 
 # --------------------------------------------------------------------
@@ -1077,24 +1102,28 @@ def _construir_aba_base_dados(wb: Workbook, *, id_obra: str) -> None:
 # --------------------------------------------------------------------
 # Intervalos nomeados (fonte dos dropdowns amigáveis)
 # --------------------------------------------------------------------
-def _criar_intervalos_nomeados(wb: Workbook, *, ultima_linha_financeiro: int) -> None:
+def _criar_intervalos_nomeados(wb: Workbook) -> None:
     """
     Intervalos Nomeados para as colunas "Nome"/"Descrição" que alimentam
     dropdowns amigáveis — ver docstring equivalente na versão da Etapa 2.
-    Etapas/Subetapas mantidos sem alteração; `NOME_INTERVALO_FINANCEIRO_
-    DESCRICOES` é novo na Etapa 4 (fonte do dropdown "Lançamento" da aba
-    Pagamentos).
+
+    Etapa 5.1 (Correções 1 e 2): os três passam a apontar para a coluna
+    da Tabela Excel estruturada correspondente (`Tabela[Coluna]`), em
+    vez de um range de célula fixo. Isso resolve, com a MESMA estratégia
+    para os três (auditoria pós-Etapa 5, AUD-22), tanto a inconsistência
+    de `Lista_Financeiro_Descricoes` (antes limitada à antiga última
+    linha) quanto o teto de 1000 linhas que `Lista_Etapas`/`Lista_
+    Subetapas` já tinham — nenhum dos três depende mais de um número
+    fixo de linhas.
     """
     wb.defined_names[NOME_INTERVALO_ETAPAS] = DefinedName(
-        NOME_INTERVALO_ETAPAS, attr_text="Etapas!$B$2:$B$1000"
+        NOME_INTERVALO_ETAPAS, attr_text=f"{NOME_TABELA_ETAPAS}[Nome]"
     )
     wb.defined_names[NOME_INTERVALO_SUBETAPAS] = DefinedName(
-        NOME_INTERVALO_SUBETAPAS, attr_text="Subetapas!$B$2:$B$1000"
+        NOME_INTERVALO_SUBETAPAS, attr_text=f"{NOME_TABELA_SUBETAPAS}[Nome]"
     )
-    letra_descricao = get_column_letter(COL_FIN_DESCRICAO)
     wb.defined_names[NOME_INTERVALO_FINANCEIRO_DESCRICOES] = DefinedName(
-        NOME_INTERVALO_FINANCEIRO_DESCRICOES,
-        attr_text=f"Financeiro!${letra_descricao}$2:${letra_descricao}${ultima_linha_financeiro}",
+        NOME_INTERVALO_FINANCEIRO_DESCRICOES, attr_text=f"{NOME_TABELA_FINANCEIRO}[Descrição]"
     )
 
 
@@ -1120,8 +1149,64 @@ def _aplicar_bordas(ws: Worksheet, ultima_linha: int, n_colunas: int) -> None:
             celula.border = BORDA_CELULA
 
 
-def _aplicar_filtro_e_congelamento(ws: Worksheet, ultima_linha: int, n_colunas: int) -> None:
-    """Filtro (Etapa 3, Seção 24) e congelamento de cabeçalho (mantido da Etapa 2)."""
+def _registrar_tabela(ws: Worksheet, *, nome: str, ultima_linha: int, n_colunas: int) -> None:
+    """
+    Etapa 5.1 (Correção 1 — expansão real do Excel, AUD-20/AUD-21).
+
+    Envolve o intervalo de dado+buffer (cabeçalho incluso) como uma
+    Tabela Excel estruturada nativa. É o mecanismo do próprio Excel
+    para que fórmulas, validações (dropdowns) e formatação se estendam
+    automaticamente quando o Operador digita na linha logo abaixo da
+    tabela — sem depender de nenhum teto numérico de linhas.
+    `LINHAS_MODELO` deixa de ser um limite: passa a significar apenas
+    "quantas linhas de buffer pré-formatadas vêm prontas de fábrica".
+
+    A Tabela já inclui seu próprio filtro automático (equivalente ao
+    antigo `ws.auto_filter.ref`) — por isso não é mais necessário
+    configurar `ws.auto_filter` separadamente.
+
+    Sem `TableStyleInfo.name` (nenhum estilo predefinido do Excel) para
+    preservar a aparência visual atual (cores/fontes definidas em
+    `src/excel/estilos.py`), evitando introduzir zebra/faixas não
+    pedidas (princípio "Less is more", AGENTS.md §10).
+    """
     ultima_coluna = get_column_letter(n_colunas)
-    ws.auto_filter.ref = f"A1:{ultima_coluna}{ultima_linha}"
-    ws.freeze_panes = "A2"
+    tabela = Table(displayName=nome, ref=f"A1:{ultima_coluna}{ultima_linha}")
+    tabela.tableStyleInfo = TableStyleInfo(
+        name=None,
+        showFirstColumn=False,
+        showLastColumn=False,
+        showRowStripes=False,
+        showColumnStripes=False,
+    )
+    ws.add_table(tabela)
+
+
+def _adicionar_validacao_nome_unico(
+    ws: Worksheet, *, coluna_nome: int, ultima_linha: int, nome_tabela: str, titulo_coluna: str = "Nome"
+) -> None:
+    """
+    Etapa 5.1 (correção de baixo risco para AUD-18 — vínculo por nome).
+
+    O vínculo entre abas (Subetapa→Etapa, Serviço→Subetapa, Pagamento→
+    Financeiro) continua resolvido por MATCH no nome/descrição, não por
+    ID (mudar esse mecanismo exigiria uma refatoração estrutural maior,
+    fora do escopo desta correção). Em vez disso, esta validação
+    bloqueia a causa raiz do risco — nomes/descrições duplicados —
+    impedindo, na própria origem, que o Operador cadastre dois
+    registros com o mesmo Nome/Descrição nesta coluna. Não altera
+    dropdowns, MATCH nem nenhum teste que já garante "dropdown mostra
+    nome, nunca ID".
+    """
+    letra = get_column_letter(coluna_nome)
+    dv_unico = DataValidation(
+        type="custom",
+        formula1=f"=COUNTIF({nome_tabela}[{titulo_coluna}],{letra}2)=1",
+        allow_blank=True,
+        showErrorMessage=True,
+        errorTitle=f"{titulo_coluna} duplicado",
+        error=f"Já existe um registro com este mesmo {titulo_coluna.lower()}. "
+        "Use um valor diferente para evitar vínculos ambíguos entre abas.",
+    )
+    ws.add_data_validation(dv_unico)
+    dv_unico.add(f"{letra}2:{letra}{ultima_linha}")

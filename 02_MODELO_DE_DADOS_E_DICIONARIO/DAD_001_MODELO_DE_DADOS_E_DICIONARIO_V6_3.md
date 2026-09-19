@@ -1,4 +1,4 @@
-# Modelo de Dados e Dicionário — V6.3 (Revisão 8 — Alterações)
+# Modelo de Dados e Dicionário — V6.3 (Revisão 9 — Correções Pós-Auditoria)
 
 **Data da Revisão 1:** 2026-09-16 — `AUDITORIA_PRE_CONSTRUCAO_V1` identificou ausência de dicionário de dados executável. A Revisão 1 substituiu a versão anterior (3 linhas) por uma especificação estruturada por entidade.
 **Motivo da Revisão 2:** o responsável pelo projeto homologou a **Opção B — Vincular Aporte ao Orçamento** (ver `05_REGRAS_DE_NEGOCIO/REG_001`, REG-006/REG-017). A Revisão 2 ajustou apenas as entidades OBRAS e FINANCEIRO.
@@ -8,6 +8,7 @@
 **Motivo da Revisão 6:** o responsável pelo projeto homologou o módulo/base de **ORÇAMENTO** (Etapa 3 de construção; ver `05_REGRAS_DE_NEGOCIO/REG_001`, REG-003/REG-026/REG-027/REG-028): "Valor Total Orçado" foi renomeado para **Valor Calculado** (Quantidade × Valor Unitário, sempre calculado, nunca sobrescrito); novos campos **Valor Previsto (Ajuste Manual)**, **Ajuste Manual**, **Valor Previsto** e **Variação** na entidade SERVIÇOS/ORÇAMENTO; o campo **Status** de SERVIÇOS/ORÇAMENTO deixa de ser [H] e passa a ter domínio fechado homologado (Ativo, Concluído, Cancelado, Retirado do Escopo, Substituído); REG-003 (Orçamento Previsto) passa a somar o Valor Previsto dos Serviços elegíveis, não mais o Valor Calculado isolado. Esta revisão ajusta apenas a entidade SERVIÇOS/ORÇAMENTO; as demais 12 entidades não foram alteradas.
 **Motivo da Revisão 7:** o responsável pelo projeto homologou o módulo **FINANCEIRO** (Etapa 4 de construção, 2026-09-17; ver `05_REGRAS_DE_NEGOCIO/REG_001`, REG-004/REG-005/REG-018/REG-029 a REG-032): a entidade FINANCEIRO ganha campos novos (Descrição, Fornecedor opcional, Compra opcional, Observação, Situação) e o domínio "Tipo" é fechado com 4 valores (Aporte, Outras Entradas, Despesa/Custo, Outras Saídas); nova entidade **PAGAMENTOS** (14ª entidade do modelo), separando a baixa financeira do reconhecimento do custo. Esta revisão ajusta a entidade FINANCEIRO e acrescenta PAGAMENTOS; as demais 12 entidades não foram alteradas.
 **Motivo da Revisão 8:** o responsável pelo projeto homologou o módulo **ALTERAÇÕES** (Etapa 5 de construção, 2026-09-17; ver `05_REGRAS_DE_NEGOCIO/REG_001`, REG-012/REG-017): a entidade ALTERAÇÕES ganha domínio fechado nos campos "Tipo de Alteração" (Escopo/Prazo/Orçamento) e "Status de Aprovação" (Pendente/Aprovada/Rejeitada), resolvendo os dois campos antes [H]/[P]; "Impacto no Orçamento"/"Impacto no Prazo" passam a aceitar valor negativo explicitamente (delta com sinal). Esta revisão ajusta apenas a entidade ALTERAÇÕES; as demais 13 entidades não foram alteradas.
+**Motivo da Revisão 9 (Etapa 5.1 — Correções Pós-Auditoria, 2026-09-19):** uma auditoria técnica completa pós-Etapa 5 encontrou duas correções documentais: (a) o domínio de "Status de Aprovação" de ALTERAÇÕES registrado na Revisão 8 estava divergente da decisão pretendida pelo responsável pelo projeto — corrigido de 3 para **4 valores: Em análise, Aprovada, Rejeitada, Cancelada** (ver `05_REGRAS_DE_NEGOCIO/REG_001`, REG-012, Revisão 9); (b) a seção "Regra sobre IDs" e os campos `ID_*` de 11 das 14 entidades ainda estavam marcados **[H]**, apesar de o formato `PREFIXO-0000` já estar homologado desde a Etapa 1 e implementado em `config/ids_config.py` — mesmo padrão já aplicado a `ID_Lancamento`/`ID_Pagamento`/`ID_Alteracao` nas Revisões 7/8. Esta revisão corrige a seção "Regra sobre IDs", os 11 campos `ID_*` ainda [H], a entidade ALTERAÇÕES (campo Status de Aprovação), e limpa 2 entradas já resolvidas mas nunca removidas da lista de "Domínios pendentes de homologação". Nenhuma outra entidade foi alterada.
 
 ## Legenda de status
 
@@ -38,7 +39,7 @@ A base operacional é a fonte estruturada para interface, cálculos, auditoria e
 
 | Campo | Tipo | Obrigatório | Origem | Calc./Digitado | Relacionamento | Observação | Status |
 |---|---|---|---|---|---|---|---|
-| ID_Obra | Texto/código | Sim | Sistema | Calculado (gerado) | Chave para todas as demais entidades | Formato do ID (sequencial, alfanumérico, por ano) não definido | [H] |
+| ID_Obra | Texto/código | Sim | Sistema | Calculado (gerado) | Chave para todas as demais entidades | Prefixo `OBR-` + sequencial 4 dígitos (`OBR-0001`), homologado desde a Etapa 1 (`config/ids_config.py`) — corrigido de [H] para [D] na Revisão 9 | [D] |
 | Nome da Obra | Texto | Sim | Usuário | Digitado | — | Nome real e familiar, visível ao usuário | [P] |
 | Cliente/Contratante | Texto | Sim | Usuário | Digitado | Não existe entidade "Cliente" modelada separadamente | Definir se "Cliente" (pessoa) vira entidade própria ou campo texto | [H] |
 | Endereço | Texto | Não | Usuário | Digitado | — | — | [P] |
@@ -63,7 +64,7 @@ A base operacional é a fonte estruturada para interface, cálculos, auditoria e
 
 | Campo | Tipo | Obrigatório | Origem | Calc./Digitado | Relacionamento | Observação | Status |
 |---|---|---|---|---|---|---|---|
-| ID_Etapa | Texto/código | Sim | Sistema | Calculado | FK → OBRAS | Formato não definido | [H] |
+| ID_Etapa | Texto/código | Sim | Sistema | Calculado | FK → OBRAS | Prefixo `ETA-` + sequencial 4 dígitos, homologado desde a Etapa 1 (`config/ids_config.py`) — corrigido de [H] para [D] na Revisão 9 | [D] |
 | ID_Obra | Texto/código | Sim | Sistema | Calculado | FK → OBRAS | — | [P] |
 | Nome da Etapa | Texto | Sim | Usuário | Digitado | — | Lista de nomes reais não é fechada (obra a obra pode variar) | [P] |
 | Ordem/Sequência | Número | Sim | Usuário | Digitado | — | — | [P] |
@@ -101,7 +102,7 @@ OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO
 
 | Campo | Tipo | Obrigatório | Origem | Calc./Digitado | Relacionamento | Observação | Status |
 |---|---|---|---|---|---|---|---|
-| ID_Subetapa | Texto/código | Sim | Sistema | Calculado | Chave própria da entidade | Formato do ID não definido por esta decisão (mesma lacuna geral de formato de ID já registrada para as demais entidades) | [H] |
+| ID_Subetapa | Texto/código | Sim | Sistema | Calculado | Chave própria da entidade | Prefixo `SUB-` + sequencial 4 dígitos, homologado desde a Etapa 1 (`config/ids_config.py`) — corrigido de [H] para [D] na Revisão 9 | [D] |
 | ID_Etapa | Texto/código | Sim | Sistema | Calculado | FK → ETAPAS (obrigatória, regra 2 da decisão) | Toda Subetapa deve estar vinculada a uma Etapa | [D] |
 | Nome da Subetapa | Texto | Sim | Usuário | Digitado | — | Nome real e familiar (ver exemplo "Alvenaria interna") | [P] |
 | Peso da Subetapa | Número/% | Não (agregado, não é campo primário) | Sistema | Calculado (Σ dos Pesos Automáticos **globais** — REG-008 — dos Serviços Elegíveis vinculados à Subetapa) | Usado na exibição do progresso consolidado da Subetapa (REG-020) | **Peso automático homologado em 2026-09-16 (Revisão 4), escopo global definido na Revisão 5 (REG-008/REG-020):** cada Serviço tem um único peso global (denominador = Σ Valor Orçado dos Serviços Elegíveis da Obra); "Peso da Subetapa" é apenas a soma desses pesos globais — não é recalculado/renormalizado dentro da Subetapa. Ajuste manual de peso é admitido como exceção e fica protegido (REG-023); campos técnicos de rastreabilidade permanecem [H] (ver ENTIDADE: SERVIÇOS/ORÇAMENTO) | [D] |
@@ -125,7 +126,7 @@ OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO
 
 | Campo | Tipo | Obrigatório | Origem | Calc./Digitado | Relacionamento | Observação | Status |
 |---|---|---|---|---|---|---|---|
-| ID_Servico | Texto/código | Sim | Sistema | Calculado | FK → SUBETAPAS | — | [H] |
+| ID_Servico | Texto/código | Sim | Sistema | Calculado | FK → SUBETAPAS | Prefixo `SRV-` + sequencial 4 dígitos, homologado desde a Etapa 1 (`config/ids_config.py`) — corrigido de [H] para [D] na Revisão 9 | [D] |
 | ID_Subetapa | Texto/código | Sim | Sistema | Calculado | FK → SUBETAPAS (obrigatória) | **Decisão homologada em 2026-09-16:** todo Serviço vincula-se a uma Subetapa — não mais diretamente a uma Etapa. Hierarquia oficial: OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO. O vínculo com a Etapa é obtido indiretamente via a Subetapa (ID_Etapa da Subetapa). | [D] |
 | Descrição do Serviço | Texto | Sim | Usuário | Digitado | — | Nome real da construção civil | [P] |
 | Unidade de Medida | Domínio | Sim | Usuário | Digitado | — | Lista (m², m³, kg, un., vb.) não homologada | [H] |
@@ -171,7 +172,7 @@ OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO
 
 | Campo | Tipo | Obrigatório | Origem | Calc./Digitado | Relacionamento | Observação | Status |
 |---|---|---|---|---|---|---|---|
-| ID_Planejamento | Texto/código | Sim | Sistema | Calculado | FK → ETAPAS/SUBETAPAS | — | [H] |
+| ID_Planejamento | Texto/código | Sim | Sistema | Calculado | FK → ETAPAS/SUBETAPAS | Prefixo `PLN-` já reservado/homologado (`config/ids_config.py`, derivado da mesma regra da Etapa 1) — corrigido de [H] para [D] na Revisão 9; módulo PLANEJAMENTO em si ainda não construído | [D] |
 | Data Início Prevista | Data | Sim | Usuário | Digitado | — | — | [P] |
 | Data Fim Prevista | Data | Sim | Usuário | Digitado | — | — | [P] |
 | Duração Prevista (dias) | Número | Sim | Sistema | Calculado | — | — | [P] |
@@ -188,7 +189,7 @@ OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO
 
 | Campo | Tipo | Obrigatório | Origem | Calc./Digitado | Relacionamento | Observação | Status |
 |---|---|---|---|---|---|---|---|
-| ID_Fornecedor | Texto/código | Sim | Sistema | Calculado | FK ← COMPRAS, SERVIÇOS/ORÇAMENTO | — | [H] |
+| ID_Fornecedor | Texto/código | Sim | Sistema | Calculado | FK ← COMPRAS, SERVIÇOS/ORÇAMENTO | Prefixo `FOR-` já reservado/homologado (`config/ids_config.py`, derivado da mesma regra da Etapa 1) — corrigido de [H] para [D] na Revisão 9; módulo FORNECEDORES em si ainda não construído | [D] |
 | Nome/Razão Social | Texto | Sim | Usuário | Digitado | — | — | [P] |
 | CNPJ/CPF | Texto | Não | Usuário | Digitado | — | — | [P] |
 | Contato | Texto | Não | Usuário | Digitado | — | — | [P] |
@@ -206,7 +207,7 @@ OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO
 
 | Campo | Tipo | Obrigatório | Origem | Calc./Digitado | Relacionamento | Observação | Status |
 |---|---|---|---|---|---|---|---|
-| ID_Compra | Texto/código | Sim | Sistema | Calculado | FK → OBRAS, FORNECEDORES, SERVIÇOS/ORÇAMENTO | — | [H] |
+| ID_Compra | Texto/código | Sim | Sistema | Calculado | FK → OBRAS, FORNECEDORES, SERVIÇOS/ORÇAMENTO | Prefixo `COM-` já homologado desde a Etapa 1 (`config/ids_config.py`) — corrigido de [H] para [D] na Revisão 9; módulo COMPRAS em si ainda não construído | [D] |
 | Data da Compra | Data | Sim | Usuário | Digitado | — | — | [P] |
 | Valor | Moeda | Sim | Usuário | Digitado | — | — | [P] |
 | Forma de Pagamento | Domínio | Não | Usuário | Digitado | — | Não definido | [H] |
@@ -288,7 +289,7 @@ OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO
 
 | Campo | Tipo | Obrigatório | Origem | Calc./Digitado | Relacionamento | Observação | Status |
 |---|---|---|---|---|---|---|---|
-| ID_Medicao | Texto/código | Sim | Sistema | Calculado | FK → ETAPAS/SUBETAPAS/SERVIÇOS | — | [H] |
+| ID_Medicao | Texto/código | Sim | Sistema | Calculado | FK → ETAPAS/SUBETAPAS/SERVIÇOS | Prefixo `EXE-` já homologado desde a Etapa 1 (`config/ids_config.py`) — corrigido de [H] para [D] na Revisão 9; motor de cálculo de execução física em si ainda não construído | [D] |
 | Data da Medição | Data | Sim | Usuário | Digitado | — | Periodicidade (semanal/por marco) não definida | [H] |
 | Quantidade/% Executado | Número/% | Sim | Usuário | Digitado | — | — | [P] |
 | Responsável pela Medição | Texto | Não | Usuário | Digitado | — | — | [P] |
@@ -310,7 +311,7 @@ OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO
 | Descrição | Texto | Sim | Usuário | Digitado | — | — | [P] |
 | Impacto no Orçamento | Moeda | Não | Usuário | Digitado | Soma no Orçamento Vigente (REG-017) quando Status = Aprovada | **[D] HOMOLOGADO em 2026-09-17 (Etapa 5):** aceita valor negativo — é um delta com sinal (uma Alteração aprovada pode REDUZIR o orçamento), diferente de FINANCEIRO!Valor (REG-030), cujo sinal é sempre dado pelo Tipo. Validado apenas quanto a ser numérico (`validar_numero`), sem exigir não-negativo. | [D] |
 | Impacto no Prazo | Número (dias) | Não | Usuário | Digitado | — | Mesma regra de sinal do campo acima (pode ser negativo — antecipação de prazo). Não integrado a nenhum módulo de Planejamento/Cronograma (ainda não construído) — campo puramente informativo nesta etapa. | [P] |
-| Status de Aprovação | Domínio | Não | Usuário | Digitado | — | **[D] HOMOLOGADO em 2026-09-17 (Etapa 5, REG-012):** domínio fechado Pendente, Aprovada, Rejeitada. Seleção manual e direta do Operador — sem workflow multi-etapa, sem aprovador distinto, sem justificativa obrigatória. Só "Aprovada" soma no Orçamento Vigente; Pendente/Rejeitada permanecem visíveis, nunca apagadas. | [D] |
+| Status de Aprovação | Domínio | Não | Usuário | Digitado | — | **[D] HOMOLOGADO em 2026-09-17 (Etapa 5, REG-012), CORRIGIDO em 2026-09-19 (Revisão 9):** domínio fechado **Em análise, Aprovada, Rejeitada, Cancelada** (a Revisão 8 havia registrado só 3 valores, sem "Cancelada" — corrigido pela auditoria pós-Etapa 5). Seleção manual e direta do Operador — sem workflow multi-etapa, sem aprovador distinto, sem justificativa obrigatória. Só "Aprovada" soma no Orçamento Vigente; Em análise/Rejeitada/Cancelada permanecem visíveis, nunca apagadas. | [D] |
 | Solicitante | Texto | Não | Usuário | Digitado | — | — | [P] |
 | Data | Data | Não | Usuário | Digitado | — | — | [P] |
 
@@ -324,7 +325,7 @@ OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO
 
 | Campo | Tipo | Obrigatório | Origem | Calc./Digitado | Relacionamento | Observação | Status |
 |---|---|---|---|---|---|---|---|
-| ID_Pendencia | Texto/código | Sim | Sistema | Calculado | FK → OBRAS | — | [H] |
+| ID_Pendencia | Texto/código | Sim | Sistema | Calculado | FK → OBRAS | Prefixo `PEN-` já homologado desde a Etapa 1 (`config/ids_config.py`) — corrigido de [H] para [D] na Revisão 9; módulo PENDÊNCIAS em si ainda não construído | [D] |
 | Descrição | Texto | Sim | Usuário | Digitado | — | — | [P] |
 | Responsável | Texto | Não | Usuário | Digitado | — | — | [P] |
 | Data de Abertura | Data | Sim | Usuário | Digitado | — | — | [P] |
@@ -343,7 +344,7 @@ OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO
 
 | Campo | Tipo | Obrigatório | Origem | Calc./Digitado | Relacionamento | Observação | Status |
 |---|---|---|---|---|---|---|---|
-| ID_Atualizacao | Texto/código | Sim | Sistema | Calculado | FK → OBRAS | — | [H] |
+| ID_Atualizacao | Texto/código | Sim | Sistema | Calculado | FK → OBRAS | Prefixo `ATU-` já homologado desde a Etapa 1 (`config/ids_config.py`) — corrigido de [H] para [D] na Revisão 9; módulo ATUALIZAÇÕES em si ainda não construído | [D] |
 | Data | Data | Sim | Usuário | Digitado | — | — | [P] |
 | Autor | Texto | Sim | Sistema | Calculado (usuário logado) | — | Depende do mecanismo de identificação (ver SEC_001) | [H] |
 | Texto/Descrição | Texto | Sim | Usuário | Digitado | — | — | [P] |
@@ -362,7 +363,7 @@ OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO
 
 | Campo | Tipo | Obrigatório | Origem | Calc./Digitado | Relacionamento | Observação | Status |
 |---|---|---|---|---|---|---|---|
-| ID_Documento | Texto/código | Sim | Sistema | Calculado | FK → OBRAS | — | [H] |
+| ID_Documento | Texto/código | Sim | Sistema | Calculado | FK → OBRAS | Prefixo `DOC-` já homologado desde a Etapa 1 (`config/ids_config.py`) — corrigido de [H] para [D] na Revisão 9; módulo DOCUMENTOS em si ainda não construído | [D] |
 | Vínculo | FK | Não | Sistema | Calculado | FK opcional → ETAPAS/MEDIÇÕES/COMPRAS/ALTERAÇÕES | — | [P] |
 | Tipo de Arquivo | Domínio | Não | Sistema | Calculado | — | — | [P] |
 | Data de Upload | Data | Sim | Sistema | Calculado | — | — | [P] |
@@ -381,8 +382,6 @@ Nenhum destes domínios (listas fechadas de valores) foi inventado; todos precis
 - Categoria de Fornecedor
 - Forma de Pagamento
 - Status de Aprovação de Compra
-- Tipo de Alteração
-- Status de Aprovação de Alteração
 - Status/Prioridade de Pendência
 - Status do Prazo (Planejamento)
 - Lista fechada de quais Serviços usam o método Quantitativo e quais usam o método Status — REG-007
@@ -420,9 +419,13 @@ OBRAS (1) ──< ATUALIZAÇÕES
 OBRAS (1) ──< DOCUMENTOS
 ```
 
-## Regra sobre IDs — [H]
+## Regra sobre IDs — [D] (corrigido na Revisão 9, 2026-09-19)
 
-Nenhuma fonte define o formato de ID técnico (sequencial numérico, código alfanumérico por obra, UUID). AGENTS.md §11 apenas estabelece o princípio de que IDs técnicos podem existir mas não devem dominar a experiência do usuário. **Formato de ID: [H] HOMOLOGAR.**
+**Formato de ID técnico: `PREFIXO-0000`** (prefixo de 3 letras maiúsculas por entidade + sequencial de 4 dígitos com zero à esquerda, ex. `OBR-0001`, `SRV-0042`). Homologado desde "FUNDAÇÃO TÉCNICA — ETAPA 1" (2026-09-16, Seção 7 — "IDS INTERNOS") e implementado em `config/ids_config.py`/`src/ids/gerador_id.py`, com os 14 prefixos oficiais já atribuídos: OBR, ETA, SUB, SRV, PLN, FOR, COM, FIN, EXE, ALT, PEN, ATU, DOC, PGT.
+
+Esta seção e a maior parte dos campos `ID_*` deste documento permaneceram marcados **[H]** até a Revisão 9, apesar de o formato já estar homologado e em uso consistente desde a Etapa 1 — uma auditoria técnica pós-Etapa 5 (2026-09-19) identificou essa desatualização documental (a documentação não tinha acompanhado o código) e corrigiu os campos de ID de todas as 14 entidades para [D], mantendo o princípio de AGENTS.md §11 (IDs técnicos existem internamente, mas o usuário vê nomes reais).
+
+**Caso-limite não homologado (permanece [H]):** comportamento do gerador quando o sequencial de uma entidade ultrapassa 9999 (o regex de validação aceita 4+ dígitos, mas nenhuma fonte define se o padrão deve continuar crescendo, ser reiniciado por obra, ou outra estratégia).
 
 ## Registro de homologação — Revisão 4
 
@@ -467,3 +470,14 @@ Em 2026-09-17, o responsável pelo projeto homologou o módulo **ALTERAÇÕES** 
 - **Cálculo completo do Orçamento Vigente (não é campo de nenhuma entidade — vive em `src/alteracoes/calculos.py` + `src/financeiro/calculos.py`):** a parcela "Σ(Alterações Formais Aprovadas)" que a Revisão 7 registrava como [H]/fora de escopo agora soma de fato — Orçamento Vigente = Orçamento Inicial + Aportes + Alterações Aprovadas, validado com dados reais recalculados em Excel.
 
 **Preservado, não reaberto:** Aporte × Orçamento = Opção B; SUBETAPAS como entidade própria; hierarquia oficial; Modelo Híbrido de progresso físico; Valor Previsto/Status do Serviço/Variação do Orçamento (Etapa 3); domínio de FINANCEIRO/PAGAMENTOS (Etapa 4). **Permanecem [H]/fora de escopo, não inventados nesta rodada:** domínio fechado de Situação/cancelamento em FINANCEIRO; mecanismo técnico de restrição de visibilidade por perfil (inclusive sobre quem pode aprovar/rejeitar uma Alteração); automação Escopo→Serviços/Orçamento; integração de "Impacto no Prazo" com um módulo de Planejamento/Cronograma (ainda não construído); Compras e Fornecedores como módulos com interface Excel própria; fluxo de edição/exclusão de lançamentos, pagamentos e alterações.
+
+## Registro de homologação — Revisão 9
+
+Em 2026-09-19, uma auditoria técnica completa pós-Etapa 5 ("ETAPA 5.1 — Correções Pós-Auditoria") encontrou e o responsável pelo projeto corrigiu formalmente:
+- **ALTERAÇÕES** — campo "Status de Aprovação" corrigido de domínio fechado com 3 valores (Pendente/Aprovada/Rejeitada, Revisão 8) para **4 valores (Em análise/Aprovada/Rejeitada/Cancelada)**. Regra de impacto no Orçamento Vigente inalterada.
+- **Regra sobre IDs** e os campos `ID_*` de 11 das 14 entidades — corrigidos de [H] para [D]: o formato `PREFIXO-0000` já estava de fato homologado desde a Etapa 1 e implementado em `config/ids_config.py`; a documentação estava desatualizada, não a decisão em si (mesmo padrão já aplicado a `ID_Lancamento`/`ID_Pagamento`/`ID_Alteracao` nas Revisões 7/8).
+- **Lista de "Domínios pendentes de homologação"** — removidas 2 entradas ("Tipo de Alteração", "Status de Aprovação de Alteração") que já estavam [D] desde a Revisão 8 e nunca haviam sido retiradas da lista.
+
+**Também corrigido nesta rodada, sem alterar nenhuma entidade nem campo deste documento:** o gerador Excel (`src/excel/construtor_workbook.py`) passou a usar Tabelas Excel estruturadas para as 6 entidades de registro (Etapas, Subetapas, Serviços, Financeiro, Pagamentos, Alterações), eliminando o risco de fórmulas de totais ignorarem silenciosamente registros além do buffer inicial de linhas — puramente técnico, sem mudança de modelo de dados. Ver `dados/GESTAO_DE_OBRAS_OBRA_MODELO_V5.xlsx`.
+
+**Preservado, não reaberto:** todas as decisões das Revisões 1–8. **Permanecem [H], não inventados nesta rodada:** sobrepagamento (Total Pago > Custo Reconhecido em PAGAMENTOS — ver `05_REGRAS_DE_NEGOCIO/REG_001`, REG-029); domínio de Situação/cancelamento em FINANCEIRO; mecanismo técnico de restrição de visibilidade por perfil; caso-limite de sequencial de ID > 9999.

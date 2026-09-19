@@ -204,27 +204,39 @@ class TipoAlteracao(str, Enum):
 class StatusAprovacaoAlteracao(str, Enum):
     """
     Domínio fechado do "Status de Aprovação" de ALTERAÇÕES — [D]
-    HOMOLOGADO na Etapa 5 (2026-09-17), fechando REG-012 (antes [H]:
-    "fluxo de aprovação não definido").
+    HOMOLOGADO na Etapa 5 (2026-09-17) e CORRIGIDO na Etapa 5.1
+    (2026-09-19, auditoria pós-Etapa 5 / decisão do responsável pelo
+    projeto), fechando REG-012.
+
+    Domínio oficial (4 valores): Em análise, Aprovada, Rejeitada,
+    Cancelada. A Etapa 5 havia homologado só 3 valores (Pendente/
+    Aprovada/Rejeitada, sem "Cancelada") — a Etapa 5.1 corrige isso
+    para o domínio efetivamente homologado pelo responsável do
+    projeto. Como o gerador ainda produz apenas um MODELO/template
+    (sem base de produção com dados reais), a correção do domínio foi
+    aplicada diretamente, sem migração de dados.
 
     Decisão homologada: SEM workflow de aprovação multi-etapa — o
     Operador seleciona o Status diretamente (mesmo princípio "sistema
     informa, Operador decide" já usado em Financeiro/Etapa 4). Só
-    `APROVADA` integra o Orçamento Vigente (REG-017); `PENDENTE` e
-    `REJEITADA` permanecem visíveis na base, nunca apagados (mesmo
-    princípio de não-exclusão automática de `StatusServico`, Etapa 3).
+    `APROVADA` integra o Orçamento Vigente (REG-017); `EM_ANALISE`,
+    `REJEITADA` e `CANCELADA` permanecem visíveis na base, nunca
+    apagados (mesmo princípio de não-exclusão automática de
+    `StatusServico`, Etapa 3).
     """
 
-    PENDENTE = "pendente"
+    EM_ANALISE = "em_analise"
     APROVADA = "aprovada"
     REJEITADA = "rejeitada"
+    CANCELADA = "cancelada"
 
     @property
     def rotulo(self) -> str:
         rotulos = {
-            StatusAprovacaoAlteracao.PENDENTE: "Pendente",
+            StatusAprovacaoAlteracao.EM_ANALISE: "Em análise",
             StatusAprovacaoAlteracao.APROVADA: "Aprovada",
             StatusAprovacaoAlteracao.REJEITADA: "Rejeitada",
+            StatusAprovacaoAlteracao.CANCELADA: "Cancelada",
         }
         return rotulos[self]
 

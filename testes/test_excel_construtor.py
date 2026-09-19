@@ -24,7 +24,6 @@ sequencial (o padrão embute `ROW()`, garantindo unicidade quando calculado).
 
 from __future__ import annotations
 
-import re
 import zipfile
 import xml.etree.ElementTree as ET
 from datetime import date
@@ -289,17 +288,20 @@ def test_subetapa_nao_pode_ser_adicionada_a_base_sem_etapa_valida():
 
 # item 9: dropdowns não expõem IDs técnicos como rótulo ----------------------
 def test_dropdowns_apontam_para_coluna_de_nome_nao_para_coluna_de_id(tmp_path):
+    """Etapa 5.1: fonte dos dropdowns agora é referência estruturada de
+    Tabela (`Tabela[Nome]`), não mais um range de célula — a garantia
+    verificada continua a mesma: aponta para a coluna "Nome", nunca
+    para a coluna de ID técnico (oculta)."""
     caminho = tmp_path / "modelo.xlsx"
     construir_workbook(BaseDados()).save(caminho)
     wb = openpyxl.load_workbook(caminho)
 
     lista_etapas = wb.defined_names["Lista_Etapas"].attr_text
     lista_subetapas = wb.defined_names["Lista_Subetapas"].attr_text
-    # Coluna B é "Nome" nas duas abas (coluna A, técnica, fica oculta).
-    assert re.search(r"Etapas!\$B\$", lista_etapas)
-    assert re.search(r"Subetapas!\$B\$", lista_subetapas)
-    assert "$A$" not in lista_etapas
-    assert "$A$" not in lista_subetapas
+    assert lista_etapas == "TabelaEtapas[Nome]"
+    assert lista_subetapas == "TabelaSubetapas[Nome]"
+    assert "ID" not in lista_etapas
+    assert "ID" not in lista_subetapas
 
 
 def test_valores_exibidos_nas_colunas_de_dropdown_nao_sao_ids_tecnicos(tmp_path):

@@ -1,40 +1,37 @@
 """
-Gera a versão 4 do arquivo Excel funcional — Etapa 5 ("Alterações").
+DEPRECIADO A PARTIR DA ETAPA 5.1 — ver `scripts/gerar_arquivo_obra_modelo_v5.py`.
 
-Produz um MODELO (template) vazio de dados de negócio — nenhuma obra,
-etapa, subetapa, serviço, lançamento financeiro ou alteração fictícios
-foram inventados — agora com a aba Alterações e o Resumo Financeiro
-atualizado para considerar as Alterações Aprovadas no Orçamento Vigente.
+Este script gerou originalmente `dados/GESTAO_DE_OBRAS_OBRA_MODELO_V4.xlsx`
+na Etapa 5. `src/excel/construtor_workbook.py` (o mesmo módulo que este
+script chama) evoluiu na Etapa 5.1 ("Correções Pós-Auditoria") — as 6
+abas de registro passaram a ser Tabelas Excel estruturadas, o Resumo
+Financeiro e `Início!B8` passaram a usar referência estruturada sem
+teto de linhas, e o domínio de Status de Aprovação de Alterações foi
+corrigido para 4 valores — reexecutar este script agora produziria
+conteúdo no NOVO formato sob o NOME ANTIGO (`..._V4.xlsx`), o que seria
+uma sobrescrita silenciosa e enganosa da versão histórica (mesmo
+princípio já aplicado aos scripts da V1, V2 e V3).
 
-Gerado como uma NOVA versão (`dados/GESTAO_DE_OBRAS_OBRA_MODELO_V4.xlsx`)
-para preservar a rastreabilidade: a V1 (Etapa 2), a V2 (Etapa 3) e a V3
-(Etapa 4) permanecem no disco, intocadas (Etapa 4, Seção 36).
+Por isso este script agora se recusa a rodar. `dados/GESTAO_DE_OBRAS_
+OBRA_MODELO_V4.xlsx` permanece no disco, intocado, como registro de como
+a Etapa 5 o gerou. Para gerar a versão corrente, use:
 
-Uso:
-    .venv/Scripts/python.exe scripts/gerar_arquivo_obra_modelo_v4.py
+    .venv/Scripts/python.exe scripts/gerar_arquivo_obra_modelo_v5.py
 """
 
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 
-RAIZ_DO_PROJETO = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(RAIZ_DO_PROJETO))
-
-from src.base_dados.repositorio import BaseDados
-from src.excel.construtor_workbook import construir_workbook
-
-NOME_ARQUIVO = "GESTAO_DE_OBRAS_OBRA_MODELO_V4.xlsx"
-CAMINHO_SAIDA = RAIZ_DO_PROJETO / "dados" / NOME_ARQUIVO
+MENSAGEM = (
+    "Este script está DEPRECIADO desde a Etapa 5.1 (ver docstring do módulo).\n"
+    "Use: .venv/Scripts/python.exe scripts/gerar_arquivo_obra_modelo_v5.py\n"
+    "O arquivo dados/GESTAO_DE_OBRAS_OBRA_MODELO_V4.xlsx não foi alterado."
+)
 
 
 def main() -> None:
-    workbook = construir_workbook(BaseDados())  # base vazia -> modelo/template, sem dado inventado
-    CAMINHO_SAIDA.parent.mkdir(parents=True, exist_ok=True)
-    workbook.save(CAMINHO_SAIDA)
-    print(f"Arquivo gerado em: {CAMINHO_SAIDA}")
-    print(f"Abas: {workbook.sheetnames}")
+    raise SystemExit(MENSAGEM)
 
 
 if __name__ == "__main__":

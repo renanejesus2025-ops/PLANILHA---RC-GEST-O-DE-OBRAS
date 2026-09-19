@@ -136,12 +136,15 @@ def test_coluna_entrada_saida_nunca_classifica_despesa_como_entrada_ou_saida_dir
 # Seção 20 — Pagamentos vinculados por Descrição (nome amigável), nunca por ID
 # --------------------------------------------------------------------
 def test_dropdown_de_lancamento_em_pagamentos_aponta_para_descricao_nao_para_id(tmp_path):
+    """Etapa 5.1: fonte agora é referência estruturada de Tabela
+    (`TabelaFinanceiro[Descrição]`), não mais um range de célula — a
+    garantia continua a mesma: aponta para a Descrição, nunca para o ID."""
     caminho = tmp_path / "v.xlsx"
     construir_workbook(BaseDados()).save(caminho)
     wb = openpyxl.load_workbook(caminho)
     lista = wb.defined_names["Lista_Financeiro_Descricoes"].attr_text
-    assert "Financeiro!$D$" in lista
-    assert "$A$" not in lista
+    assert lista == "TabelaFinanceiro[Descrição]"
+    assert "ID" not in lista
 
 
 def test_id_financeiro_em_pagamentos_e_sempre_formula(tmp_path):
@@ -216,7 +219,12 @@ def test_resumo_orcamento_vigente_soma_inicial_aportes_e_alteracoes(tmp_path):
     """REG-017 completo (Etapa 5): 3 parcelas — Orçamento Inicial + Aportes +
     Alterações Aprovadas. A fórmula não é fixada literalmente aqui porque
     depende de 3 números de linha que podem variar; verifica-se apenas que
-    ela referencia a linha de "Alterações Aprovadas" (por rótulo)."""
+    ela referencia a linha de "Alterações Aprovadas" (por rótulo).
+
+    Etapa 5.1 (AUD-21): a fórmula de "Aportes" agora usa referência
+    estruturada de Tabela (`TabelaFinanceiro[Aporte]`), sem range fixo
+    de linhas — verificado aqui pela ausência de qualquer `$...$N`
+    numérico na fórmula."""
     caminho = tmp_path / "v.xlsx"
     construir_workbook(BaseDados()).save(caminho)
     ws = openpyxl.load_workbook(caminho)["Resumo Financeiro"]
@@ -227,7 +235,9 @@ def test_resumo_orcamento_vigente_soma_inicial_aportes_e_alteracoes(tmp_path):
     linha_vigente = linhas_rotulo["Orçamento Vigente"]
 
     assert ws.cell(row=linha_inicial, column=2).value == "=Início!$B$8"
-    assert ws.cell(row=linha_aportes, column=2).value.startswith("=SUM(Financeiro!$G$2:$G$")
+    formula_aportes = ws.cell(row=linha_aportes, column=2).value
+    assert formula_aportes == "=SUM(TabelaFinanceiro[Aporte])"
+    assert not any(c.isdigit() for c in formula_aportes.split("[")[0])  # sem teto de linha
 
     formula_vigente = ws.cell(row=linha_vigente, column=2).value
     assert formula_vigente.count("+") == 2  # 3 parcelas = 2 somas

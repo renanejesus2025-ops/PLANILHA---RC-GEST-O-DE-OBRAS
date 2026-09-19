@@ -21,8 +21,11 @@ def test_tres_tipos_de_alteracao_homologados():
     assert {t.rotulo for t in TipoAlteracao} == {"Escopo", "Prazo", "Orçamento"}
 
 
-def test_tres_status_de_aprovacao_homologados():
-    assert {s.rotulo for s in StatusAprovacaoAlteracao} == {"Pendente", "Aprovada", "Rejeitada"}
+def test_quatro_status_de_aprovacao_homologados():
+    """Domínio corrigido na Etapa 5.1 (auditoria pós-Etapa 5): 4 valores, não 3."""
+    assert {s.rotulo for s in StatusAprovacaoAlteracao} == {
+        "Em análise", "Aprovada", "Rejeitada", "Cancelada",
+    }
 
 
 def test_apenas_status_aprovada_integra_orcamento_vigente():
@@ -116,9 +119,36 @@ def test_soma_apenas_alteracoes_aprovadas():
     base = BaseDados()
     obra = _obra_com_orcamento(base, 0)
     _alterar(base, obra.id, impacto=10_000, status=StatusAprovacaoAlteracao.APROVADA)
-    _alterar(base, obra.id, impacto=99_999, status=StatusAprovacaoAlteracao.PENDENTE)
+    _alterar(base, obra.id, impacto=99_999, status=StatusAprovacaoAlteracao.EM_ANALISE)
     _alterar(base, obra.id, impacto=99_999, status=StatusAprovacaoAlteracao.REJEITADA)
+    _alterar(base, obra.id, impacto=99_999, status=StatusAprovacaoAlteracao.CANCELADA)
     assert total_alteracoes_aprovadas(base, obra.id) == 10_000
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        StatusAprovacaoAlteracao.EM_ANALISE,
+        StatusAprovacaoAlteracao.REJEITADA,
+        StatusAprovacaoAlteracao.CANCELADA,
+    ],
+)
+def test_status_nao_aprovada_nao_integra_orcamento_vigente(status):
+    """Etapa 5.1 (Correção 7, itens 6/7/8): Em análise, Rejeitada e Cancelada
+    individualmente não devem impactar o Orçamento Vigente."""
+    base = BaseDados()
+    obra = _obra_com_orcamento(base, 100_000)
+    _alterar(base, obra.id, impacto=50_000, status=status)
+    assert orcamento_vigente(base, obra.id) == 100_000
+
+
+def test_alteracao_com_status_nao_aprovada_permanece_registrada_na_base():
+    """Histórico preservado: Alteração não aprovada nunca é apagada (REG-012)."""
+    base = BaseDados()
+    obra = _obra_com_orcamento(base, 0)
+    alteracao = _alterar(base, obra.id, impacto=99_999, status=StatusAprovacaoAlteracao.REJEITADA)
+    assert alteracao.id in base.alteracoes
+    assert base.alteracoes[alteracao.id].status_aprovacao is StatusAprovacaoAlteracao.REJEITADA
 
 
 def test_alteracao_aprovada_com_impacto_negativo_reduz_a_soma():
@@ -156,5 +186,5 @@ def test_orcamento_vigente_completo_soma_inicial_aportes_e_alteracoes_aprovadas(
         ),
     )
     _alterar(base, obra.id, impacto=15_000, status=StatusAprovacaoAlteracao.APROVADA)
-    _alterar(base, obra.id, impacto=99_999, status=StatusAprovacaoAlteracao.PENDENTE)
+    _alterar(base, obra.id, impacto=99_999, status=StatusAprovacaoAlteracao.EM_ANALISE)
     assert orcamento_vigente(base, obra.id) == 100_000 + 20_000 + 15_000

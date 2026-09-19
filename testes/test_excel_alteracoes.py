@@ -51,7 +51,8 @@ def test_dropdown_de_tipo_de_alteracao_tem_3_valores(tmp_path):
     assert dvs[0].formula1.count(",") == 2  # exatamente 3 itens
 
 
-def test_dropdown_de_status_de_aprovacao_tem_3_valores(tmp_path):
+def test_dropdown_de_status_de_aprovacao_tem_4_valores(tmp_path):
+    """Domínio corrigido na Etapa 5.1: Em análise, Aprovada, Rejeitada, Cancelada."""
     caminho = tmp_path / "v.xlsx"
     construir_workbook(BaseDados()).save(caminho)
     ws = openpyxl.load_workbook(caminho)["Alterações"]
@@ -60,7 +61,7 @@ def test_dropdown_de_status_de_aprovacao_tem_3_valores(tmp_path):
     assert len(dvs) == 1
     for status in StatusAprovacaoAlteracao:
         assert status.rotulo in dvs[0].formula1
-    assert dvs[0].formula1.count(",") == 2
+    assert dvs[0].formula1.count(",") == 3  # exatamente 4 itens
 
 
 def test_impacto_no_orcamento_aceita_negativo_sem_validacao_de_sinal(tmp_path):
@@ -88,6 +89,9 @@ def test_resumo_financeiro_orcamento_vigente_soma_3_parcelas(tmp_path):
 
 
 def test_resumo_financeiro_alteracoes_aprovadas_usa_sumifs_por_status(tmp_path):
+    """Etapa 5.1 (AUD-21): referência estruturada de Tabela
+    (`TabelaAlteracoes[...]`), sem prefixo de aba nem range fixo de
+    linhas — estruturais em Excel não precisam de qualificador de aba."""
     caminho = tmp_path / "v.xlsx"
     construir_workbook(BaseDados()).save(caminho)
     ws = openpyxl.load_workbook(caminho)["Resumo Financeiro"]
@@ -95,5 +99,5 @@ def test_resumo_financeiro_alteracoes_aprovadas_usa_sumifs_por_status(tmp_path):
     linha = linhas["Alterações Aprovadas"]
     formula = ws.cell(row=linha, column=2).value
     assert "SUMIFS(" in formula
-    assert "Alterações!" in formula
+    assert "TabelaAlteracoes[" in formula
     assert StatusAprovacaoAlteracao.APROVADA.rotulo in formula
