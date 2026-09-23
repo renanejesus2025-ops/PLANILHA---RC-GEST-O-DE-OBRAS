@@ -34,6 +34,7 @@ import pytest
 from src.base_dados.repositorio import BaseDados
 from src.excecoes import ErroReferenciaInvalida
 from src.excel.construtor_workbook import (
+    COL_SRV_ID_SUBETAPA,
     COLUNAS_ETAPAS,
     COLUNAS_SERVICOS,
     COLUNAS_SUBETAPAS,
@@ -48,6 +49,7 @@ ABAS_ESPERADAS = [
     "Etapas",
     "Subetapas",
     "Serviços",
+    "Execução",
     "Financeiro",
     "Pagamentos",
     "Alterações",
@@ -66,6 +68,9 @@ ABAS_ESPERADAS = [
 # Atualizado novamente na Etapa 5 (Alterações) — nova aba "Alterações"
 # inserida entre "Pagamentos" e "Resumo Financeiro" (mesma ordem em que
 # `construir_workbook` cria as abas).
+# Atualizado na Etapa 7 (Execução/Medições) — nova aba "Execução"
+# acrescentada entre "Serviços" e "Financeiro"; nenhuma aba anterior foi
+# removida ou renomeada.
 
 
 def _construir_base_de_exemplo() -> BaseDados:
@@ -257,13 +262,15 @@ def test_hierarquia_completa_e_refletida_no_arquivo_com_nomes_amigaveis(tmp_path
 
     # Serviço "Reboco interno" deve mostrar a Subetapa amiga "Reboco" na
     # coluna visível (C), e uma fórmula de vínculo técnico coerente na
-    # coluna oculta ID_Subetapa (M — Etapa 3 acrescentou colunas de
-    # orçamento entre C e a antiga posição do vínculo técnico).
+    # coluna oculta ID_Subetapa (posição `COL_SRV_ID_SUBETAPA` — Etapa 3
+    # acrescentou colunas de orçamento entre C e a posição do vínculo
+    # técnico; Etapa 7 acrescentou colunas de execução física, deslocando
+    # o vínculo técnico ainda mais para o final).
     linha_servico = 1 + list(base.servicos.values()).index(
         next(s for s in base.servicos.values() if s.descricao == "Reboco interno")
     ) + 1
     assert ws_srv.cell(row=linha_servico, column=3).value == "Reboco"
-    formula_id_subetapa = ws_srv.cell(row=linha_servico, column=13).value
+    formula_id_subetapa = ws_srv.cell(row=linha_servico, column=COL_SRV_ID_SUBETAPA).value
     assert f"$C{linha_servico}" in formula_id_subetapa
     assert "Subetapas!$A:$A" in formula_id_subetapa and "Subetapas!$B:$B" in formula_id_subetapa
 

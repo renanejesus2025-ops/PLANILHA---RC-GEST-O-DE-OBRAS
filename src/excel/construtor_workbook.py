@@ -74,7 +74,14 @@ from src.excel.estilos import (
     PREENCHIMENTO_CABECALHO,
     PREENCHIMENTO_CALCULADO,
 )
-from src.modelo.enums import StatusAprovacaoAlteracao, StatusServico, TipoAlteracao, TipoLancamentoFinanceiro
+from src.modelo.enums import (
+    MetodoExecucao,
+    StatusAprovacaoAlteracao,
+    StatusExecucao,
+    StatusServico,
+    TipoAlteracao,
+    TipoLancamentoFinanceiro,
+)
 
 # Linhas em branco pré-formatadas (fórmulas de ID/vínculo já ativas),
 # prontas para uso direto no Excel sem dado nenhum inventado.
@@ -88,6 +95,11 @@ COLUNAS_ETAPAS = [
     ("Status", 20, False, False),
     ("ID_Obra (técnico)", 16, True, False),
     ("Total Previsto (Subetapas)", 22, False, True),
+    # Etapa 7 — valores informativos de grupo, NÃO um "% da Etapa"
+    # isolado (REG-020 marca essa fórmula como [H] — ver
+    # `src/execucao/calculos.py`, docstring do módulo).
+    ("Peso Consolidado (Execução)", 24, False, True),
+    ("Contribuição na Obra (Execução)", 28, False, True),
 ]
 COLUNAS_SUBETAPAS = [
     ("ID (técnico)", 14, True, False),
@@ -96,6 +108,9 @@ COLUNAS_SUBETAPAS = [
     ("Status", 20, False, False),
     ("ID_Etapa (técnico)", 16, True, False),
     ("Total Previsto (Serviços)", 22, False, True),
+    # Etapa 7 — mesma ressalva da aba Etapas acima.
+    ("Peso Consolidado (Execução)", 24, False, True),
+    ("Contribuição na Obra (Execução)", 28, False, True),
 ]
 COLUNAS_SERVICOS = [
     ("ID (técnico)", 14, True, False),                      # A
@@ -110,7 +125,16 @@ COLUNAS_SERVICOS = [
     ("Valor Previsto", 16, False, True),                    # J
     ("Variação", 14, False, True),                          # K
     ("Status", 20, False, False),                           # L
-    ("ID_Subetapa (técnico)", 18, True, False),             # M
+    # Etapa 7 — Execução/Medições (Progresso Físico, REG-007/008/020):
+    ("Método de Execução", 18, False, False),               # M
+    ("Status de Execução", 18, False, False),                # N
+    ("Qtd. Executada (acum.)", 20, False, True),            # O
+    ("% Execução do Serviço", 20, False, True),             # P
+    ("Peso Ajustado (manual)", 20, False, False),           # Q
+    ("Peso Automático", 16, False, True),                   # R
+    ("Peso Efetivo", 16, False, True),                      # S
+    ("Contribuição na Obra", 18, False, True),              # T
+    ("ID_Subetapa (técnico)", 18, True, False),             # U
 ]
 
 # Índices de coluna (1-based) da aba Serviços — evita "números mágicos".
@@ -126,7 +150,16 @@ COL_SRV_AJUSTE_MANUAL = 9
 COL_SRV_VALOR_PREVISTO = 10
 COL_SRV_VARIACAO = 11
 COL_SRV_STATUS = 12
-COL_SRV_ID_SUBETAPA = 13
+# Etapa 7:
+COL_SRV_METODO_EXECUCAO = 13
+COL_SRV_STATUS_EXECUCAO = 14
+COL_SRV_QTD_EXECUTADA_ACUM = 15
+COL_SRV_PERCENTUAL_EXECUCAO = 16
+COL_SRV_PESO_AJUSTADO = 17
+COL_SRV_PESO_AUTOMATICO = 18
+COL_SRV_PESO_EFETIVO = 19
+COL_SRV_CONTRIBUICAO = 20
+COL_SRV_ID_SUBETAPA = 21
 
 # --------------------------------------------------------------------
 # Etapa 4 — colunas das abas Financeiro e Pagamentos
@@ -243,12 +276,32 @@ COL_COM_ID_ETAPA = 17
 COL_COM_ID_SUBETAPA = 18
 COL_COM_ID_SERVICO = 19
 
+# --------------------------------------------------------------------
+# Etapa 7 — colunas da aba Execução (log de medições, REG-007)
+# --------------------------------------------------------------------
+COLUNAS_EXECUCAO = [
+    ("ID (técnico)", 14, True, False),                 # A
+    ("Serviço", 30, False, False),                     # B
+    ("Data da Medição", 16, False, False),             # C
+    ("Quantidade Executada", 20, False, False),        # D
+    ("Responsável", 22, False, False),                 # E
+    ("ID_Servico (técnico)", 18, True, False),         # F
+]
+COL_EXE_ID = 1
+COL_EXE_SERVICO = 2
+COL_EXE_DATA = 3
+COL_EXE_QUANTIDADE = 4
+COL_EXE_RESPONSAVEL = 5
+COL_EXE_ID_SERVICO = 6
+
 COL_SUB_ID = 1
 COL_SUB_NOME = 2
 COL_SUB_ETAPA = 3
 COL_SUB_STATUS = 4
 COL_SUB_ID_ETAPA = 5
 COL_SUB_TOTAL = 6
+COL_SUB_PESO_CONSOLIDADO = 7
+COL_SUB_CONTRIBUICAO = 8
 
 COL_ETA_ID = 1
 COL_ETA_NOME = 2
@@ -256,6 +309,8 @@ COL_ETA_ORDEM = 3
 COL_ETA_STATUS = 4
 COL_ETA_ID_OBRA = 5
 COL_ETA_TOTAL = 6
+COL_ETA_PESO_CONSOLIDADO = 7
+COL_ETA_CONTRIBUICAO = 8
 
 NOME_INTERVALO_ETAPAS = "Lista_Etapas"
 NOME_INTERVALO_SUBETAPAS = "Lista_Subetapas"
@@ -276,6 +331,7 @@ NOME_TABELA_FINANCEIRO = "TabelaFinanceiro"
 NOME_TABELA_PAGAMENTOS = "TabelaPagamentos"
 NOME_TABELA_ALTERACOES = "TabelaAlteracoes"
 NOME_TABELA_COMPRAS = "TabelaCompras"
+NOME_TABELA_EXECUCAO = "TabelaExecucao"  # Etapa 7
 
 # Lista fechada do Status do Serviço (Etapa 3, Seção 18) — mesma fonte
 # (`StatusServico`) usada pelo Python, nunca digitada de novo à mão.
@@ -301,6 +357,18 @@ _LISTA_TIPO_ALTERACAO = '"' + ",".join(_ROTULOS_TIPO_ALTERACAO) + '"'
 _ROTULOS_STATUS_APROVACAO = [s.rotulo for s in StatusAprovacaoAlteracao]
 _LISTA_STATUS_APROVACAO = '"' + ",".join(_ROTULOS_STATUS_APROVACAO) + '"'
 _ROTULO_APROVADA = StatusAprovacaoAlteracao.APROVADA.rotulo
+
+# Etapa 7 — listas fechadas de Método de Execução (REG-007) e Status de
+# Execução (REG-007.2), mesma fonte (`Enum`) usada pelo Python.
+_ROTULOS_METODO_EXECUCAO = [m.rotulo for m in MetodoExecucao]
+_LISTA_METODO_EXECUCAO = '"' + ",".join(_ROTULOS_METODO_EXECUCAO) + '"'
+_ROTULO_METODO_QUANTITATIVO = MetodoExecucao.QUANTITATIVO.rotulo
+_ROTULO_METODO_STATUS = MetodoExecucao.STATUS.rotulo
+_ROTULOS_STATUS_EXECUCAO = [s.rotulo for s in StatusExecucao]
+_LISTA_STATUS_EXECUCAO = '"' + ",".join(_ROTULOS_STATUS_EXECUCAO) + '"'
+_ROTULO_PENDENTE = StatusExecucao.PENDENTE.rotulo
+_ROTULO_EM_ANDAMENTO = StatusExecucao.EM_ANDAMENTO.rotulo
+_ROTULO_CONCLUIDO = StatusExecucao.CONCLUIDO.rotulo
 
 
 def construir_workbook(base: BaseDados | None = None) -> Workbook:
@@ -329,6 +397,7 @@ def construir_workbook(base: BaseDados | None = None) -> Workbook:
     _construir_aba_etapas(wb, etapas, id_obra=id_obra)
     _construir_aba_subetapas(wb, list(base.subetapas.values()), base.etapas)
     _construir_aba_servicos(wb, list(base.servicos.values()), base.subetapas)
+    _construir_aba_execucao(wb, list(base.execucoes.values()), base.servicos)
     _construir_aba_financeiro(wb, financeiro)
     _construir_aba_pagamentos(wb, list(base.pagamentos.values()), base.financeiro)
     _construir_aba_alteracoes(wb, alteracoes)
@@ -409,6 +478,26 @@ def _construir_aba_inicio(wb: Workbook, *, obra) -> None:
     celula_valor.border = BORDA_CELULA
     celula_valor.fill = PREENCHIMENTO_CALCULADO
     celula_valor.font = FONTE_CALCULADA
+    linha += 1
+
+    # % Execução Física da Obra (Etapa 7, REG-020) — soma da Contribuição
+    # na Obra (Execução) de todas as Etapas; cada Etapa já soma a
+    # contribuição das suas Subetapas, que por sua vez soma a
+    # contribuição dos Serviços Elegíveis (REG-022) com peso efetivo
+    # (REG-023/024/025). Mesmo padrão estrutural de "Orçamento Inicial"
+    # acima — soma pela Tabela, sem range fixo.
+    celula_rotulo = ws.cell(row=linha, column=1, value="% Execução Física da Obra")
+    celula_rotulo.font = FONTE_ROTULO_FORM
+    titulo_contrib_etapas = COLUNAS_ETAPAS[COL_ETA_CONTRIBUICAO - 1][0]
+    celula_valor = ws.cell(
+        row=linha,
+        column=2,
+        value=f"=SUM({NOME_TABELA_ETAPAS}[{titulo_contrib_etapas}])",
+    )
+    celula_valor.number_format = "0.00%"
+    celula_valor.border = BORDA_CELULA
+    celula_valor.fill = PREENCHIMENTO_CALCULADO
+    celula_valor.font = FONTE_CALCULADA
 
     ws.freeze_panes = "A2"
 
@@ -450,6 +539,30 @@ def _construir_aba_etapas(wb: Workbook, etapas: list, *, id_obra: str) -> None:
                 f'${get_column_letter(COL_SUB_ID_ETAPA)},$A{r}))'
             ),
         )
+        # Etapa 7 — Peso Consolidado/Contribuição: soma dos valores já
+        # agregados por Subetapa (mesmo padrão do Total Previsto acima).
+        # NÃO é um "% de execução da Etapa" isolado — ver ressalva no
+        # cabeçalho da coluna e em `src/execucao/calculos.py`.
+        ws.cell(
+            row=r,
+            column=COL_ETA_PESO_CONSOLIDADO,
+            value=(
+                f'=IF($B{r}="","",SUMIFS(Subetapas!${get_column_letter(COL_SUB_PESO_CONSOLIDADO)}:'
+                f'${get_column_letter(COL_SUB_PESO_CONSOLIDADO)},'
+                f'Subetapas!${get_column_letter(COL_SUB_ID_ETAPA)}:'
+                f'${get_column_letter(COL_SUB_ID_ETAPA)},$A{r}))'
+            ),
+        )
+        ws.cell(
+            row=r,
+            column=COL_ETA_CONTRIBUICAO,
+            value=(
+                f'=IF($B{r}="","",SUMIFS(Subetapas!${get_column_letter(COL_SUB_CONTRIBUICAO)}:'
+                f'${get_column_letter(COL_SUB_CONTRIBUICAO)},'
+                f'Subetapas!${get_column_letter(COL_SUB_ID_ETAPA)}:'
+                f'${get_column_letter(COL_SUB_ID_ETAPA)},$A{r}))'
+            ),
+        )
 
     dv_ordem = DataValidation(
         type="whole",
@@ -469,6 +582,10 @@ def _construir_aba_etapas(wb: Workbook, etapas: list, *, id_obra: str) -> None:
         ws.cell(row=r, column=COL_ETA_TOTAL).number_format = "#,##0.00"
         ws.cell(row=r, column=COL_ETA_TOTAL).fill = PREENCHIMENTO_CALCULADO
         ws.cell(row=r, column=COL_ETA_TOTAL).font = FONTE_CALCULADA
+        for coluna in (COL_ETA_PESO_CONSOLIDADO, COL_ETA_CONTRIBUICAO):
+            ws.cell(row=r, column=coluna).number_format = "0.00%"
+            ws.cell(row=r, column=coluna).fill = PREENCHIMENTO_CALCULADO
+            ws.cell(row=r, column=coluna).font = FONTE_CALCULADA
 
     _aplicar_bordas(ws, ultima_linha, len(COLUNAS_ETAPAS))
     _registrar_tabela(ws, nome=NOME_TABELA_ETAPAS, ultima_linha=ultima_linha, n_colunas=len(COLUNAS_ETAPAS))
@@ -522,6 +639,32 @@ def _construir_aba_subetapas(wb: Workbook, subetapas: list, etapas_por_id: dict)
                 f'${get_column_letter(COL_SRV_STATUS)},"<>{_ROTULO_SUBSTITUIDO}"))'
             ),
         )
+        # Etapa 7 — Peso Consolidado/Contribuição: soma direta de
+        # Serviços!Peso Efetivo / Serviços!Contribuição na Obra por
+        # Subetapa. Sem critério extra de Status: linhas não elegíveis já
+        # retornam "" nessas duas colunas em Serviços (SUMIFS/SUM ignoram
+        # texto). NÃO é um "% de execução da Subetapa" isolado — ver
+        # ressalva no cabeçalho da coluna e em `src/execucao/calculos.py`.
+        ws.cell(
+            row=r,
+            column=COL_SUB_PESO_CONSOLIDADO,
+            value=(
+                f'=IF($B{r}="","",SUMIFS(Serviços!${get_column_letter(COL_SRV_PESO_EFETIVO)}:'
+                f'${get_column_letter(COL_SRV_PESO_EFETIVO)},'
+                f'Serviços!${get_column_letter(COL_SRV_ID_SUBETAPA)}:'
+                f'${get_column_letter(COL_SRV_ID_SUBETAPA)},$A{r}))'
+            ),
+        )
+        ws.cell(
+            row=r,
+            column=COL_SUB_CONTRIBUICAO,
+            value=(
+                f'=IF($B{r}="","",SUMIFS(Serviços!${get_column_letter(COL_SRV_CONTRIBUICAO)}:'
+                f'${get_column_letter(COL_SRV_CONTRIBUICAO)},'
+                f'Serviços!${get_column_letter(COL_SRV_ID_SUBETAPA)}:'
+                f'${get_column_letter(COL_SRV_ID_SUBETAPA)},$A{r}))'
+            ),
+        )
 
     dv_etapa = DataValidation(
         type="list",
@@ -537,6 +680,10 @@ def _construir_aba_subetapas(wb: Workbook, subetapas: list, etapas_por_id: dict)
     _adicionar_validacao_nome_unico(ws, coluna_nome=COL_SUB_NOME, ultima_linha=ultima_linha, nome_tabela=NOME_TABELA_SUBETAPAS)
 
     for r in range(2, ultima_linha + 1):
+        for coluna in (COL_SUB_PESO_CONSOLIDADO, COL_SUB_CONTRIBUICAO):
+            ws.cell(row=r, column=coluna).number_format = "0.00%"
+            ws.cell(row=r, column=coluna).fill = PREENCHIMENTO_CALCULADO
+            ws.cell(row=r, column=coluna).font = FONTE_CALCULADA
         ws.cell(row=r, column=COL_SUB_TOTAL).number_format = "#,##0.00"
         ws.cell(row=r, column=COL_SUB_TOTAL).fill = PREENCHIMENTO_CALCULADO
         ws.cell(row=r, column=COL_SUB_TOTAL).font = FONTE_CALCULADA
@@ -562,6 +709,26 @@ def _construir_aba_servicos(wb: Workbook, servicos: list, subetapas_por_id: dict
     letra_vpm = get_column_letter(COL_SRV_VALOR_PREVISTO_MANUAL)
     letra_vp = get_column_letter(COL_SRV_VALOR_PREVISTO)
     letra_subetapa = get_column_letter(COL_SRV_SUBETAPA)
+    letra_status = get_column_letter(COL_SRV_STATUS)
+    letra_metodo = get_column_letter(COL_SRV_METODO_EXECUCAO)
+    letra_status_exec = get_column_letter(COL_SRV_STATUS_EXECUCAO)
+    letra_qtd_exec = get_column_letter(COL_SRV_QTD_EXECUTADA_ACUM)
+    letra_percentual = get_column_letter(COL_SRV_PERCENTUAL_EXECUCAO)
+    letra_peso_ajustado = get_column_letter(COL_SRV_PESO_AJUSTADO)
+    letra_peso_automatico = get_column_letter(COL_SRV_PESO_AUTOMATICO)
+    letra_peso_efetivo = get_column_letter(COL_SRV_PESO_EFETIVO)
+
+    # REG-022: mesmos 3 critérios de exclusão de Status já usados nos
+    # totais de Etapas/Subetapas (Cancelado/Retirado do Escopo/
+    # Substituído), repetidos como pares SUMIFS sobre a mesma coluna
+    # (AND de exclusões) — mais a exigência de Valor Previsto preenchido
+    # (REG-022, critério "e": valor orçado válido).
+    _criterios_elegibilidade = (
+        f'${letra_status}:${letra_status},"<>{_ROTULO_CANCELADO}",'
+        f'${letra_status}:${letra_status},"<>{_ROTULO_RETIRADO}",'
+        f'${letra_status}:${letra_status},"<>{_ROTULO_SUBSTITUIDO}",'
+        f'${letra_vp}:${letra_vp},"<>"'
+    )
 
     for r in range(2, ultima_linha + 1):
         indice = r - 2
@@ -577,6 +744,19 @@ def _construir_aba_servicos(wb: Workbook, servicos: list, subetapas_por_id: dict
             ws.cell(row=r, column=COL_SRV_VALOR_PREVISTO_MANUAL, value=servico.valor_previsto_manual)
             rotulo_status = servico.status.rotulo if servico.status is not None else None
             ws.cell(row=r, column=COL_SRV_STATUS, value=rotulo_status)
+            rotulo_metodo = servico.metodo_execucao.rotulo if servico.metodo_execucao is not None else None
+            ws.cell(row=r, column=COL_SRV_METODO_EXECUCAO, value=rotulo_metodo)
+            rotulo_status_exec = servico.status_execucao.rotulo if servico.status_execucao is not None else None
+            ws.cell(row=r, column=COL_SRV_STATUS_EXECUCAO, value=rotulo_status_exec)
+            # `ServicoOrcamento.peso_ajustado` (Python) usa escala 0–100
+            # (mesma convenção de `peso_automatico_bruto`/`pesos_efetivos_
+            # obra`, REG-008) — convertido aqui para razão 0–1, mesma
+            # convenção já usada em TODA célula "0.00%" deste arquivo
+            # (Variação % de Compras, % Orçamento Consumido).
+            peso_ajustado_razao = (
+                servico.peso_ajustado / 100 if servico.peso_ajustado is not None else None
+            )
+            ws.cell(row=r, column=COL_SRV_PESO_AJUSTADO, value=peso_ajustado_razao)
         else:
             ws.cell(
                 row=r,
@@ -605,6 +785,92 @@ def _construir_aba_servicos(wb: Workbook, servicos: list, subetapas_por_id: dict
             column=COL_SRV_VARIACAO,
             value=f'=IF(OR(${letra_vp}{r}="",${letra_vc}{r}=""),"",${letra_vp}{r}-${letra_vc}{r})',
         )
+
+        # ---------------------------------------------------------
+        # Etapa 7 — Execução/Medições (Progresso Físico)
+        # ---------------------------------------------------------
+        # Qtd. Executada (acumulada, REG-007): soma de TabelaExecucao
+        # para este Serviço (decisão de implementação 4 — medições se
+        # somam, não se substituem).
+        ws.cell(
+            row=r,
+            column=COL_SRV_QTD_EXECUTADA_ACUM,
+            value=(
+                f'=IF($A{r}="","",SUMIFS(Execução!${get_column_letter(COL_EXE_QUANTIDADE)}:'
+                f'${get_column_letter(COL_EXE_QUANTIDADE)},'
+                f'Execução!${get_column_letter(COL_EXE_ID_SERVICO)}:'
+                f'${get_column_letter(COL_EXE_ID_SERVICO)},$A{r}))'
+            ),
+        )
+        # % Execução do Serviço (REG-007, Modelo Híbrido) — razão 0–1:
+        # Quantitativo = Qtd. Executada / Quantidade Orçada;
+        # Status = tabela fixa homologada (Pendente=0%, Em andamento=
+        # 50%, Concluído=100%, REG-007.2). Sem Método definido: "".
+        ws.cell(
+            row=r,
+            column=COL_SRV_PERCENTUAL_EXECUCAO,
+            value=(
+                f'=IF($A{r}="","",'
+                f'IF(${letra_metodo}{r}="{_ROTULO_METODO_QUANTITATIVO}",'
+                f'IF(OR(${letra_qtd}{r}="",${letra_qtd}{r}=0),"",'
+                f'${letra_qtd_exec}{r}/${letra_qtd}{r}),'
+                f'IF(${letra_metodo}{r}="{_ROTULO_METODO_STATUS}",'
+                f'IF(${letra_status_exec}{r}="{_ROTULO_PENDENTE}",0,'
+                f'IF(${letra_status_exec}{r}="{_ROTULO_EM_ANDAMENTO}",0.5,'
+                f'IF(${letra_status_exec}{r}="{_ROTULO_CONCLUIDO}",1,""))),'
+                f'"")))'
+            ),
+        )
+        # Peso Automático (REG-008) — razão 0–1: Valor Previsto do
+        # Serviço / Σ Valor Previsto dos Serviços Elegíveis da Obra
+        # (denominador sempre global, REG-022). "" quando não elegível.
+        ws.cell(
+            row=r,
+            column=COL_SRV_PESO_AUTOMATICO,
+            value=(
+                f'=IF(OR($A{r}="",${letra_status}{r}="{_ROTULO_CANCELADO}",'
+                f'${letra_status}{r}="{_ROTULO_RETIRADO}",${letra_status}{r}="{_ROTULO_SUBSTITUIDO}",'
+                f'${letra_vp}{r}=""),"",'
+                f'${letra_vp}{r}/SUMIFS(${letra_vp}:${letra_vp},{_criterios_elegibilidade}))'
+            ),
+        )
+        # Peso Efetivo (REG-023/024/025) — razão 0–1: protege peso manual
+        # (Peso Ajustado preenchido); redistribui proporcionalmente ao
+        # Peso Automático apenas entre os Serviços elegíveis sem peso
+        # manual (REG-024). Quando 100% dos elegíveis são manuais e não
+        # somam 100% (REG-025), Excel não bloqueia a entrada (sem VBA,
+        # ver limitação registrada no relatório) — mostra o próprio Peso
+        # Ajustado tal como informado, deixando a inconsistência visível
+        # para o Operador corrigir (mesmo princípio "sistema informa" já
+        # usado nas demais etapas).
+        ws.cell(
+            row=r,
+            column=COL_SRV_PESO_EFETIVO,
+            value=(
+                f'=IF(OR($A{r}="",${letra_status}{r}="{_ROTULO_CANCELADO}",'
+                f'${letra_status}{r}="{_ROTULO_RETIRADO}",${letra_status}{r}="{_ROTULO_SUBSTITUIDO}",'
+                f'${letra_vp}{r}=""),"",'
+                f'IF(${letra_peso_ajustado}{r}<>"",${letra_peso_ajustado}{r},'
+                f'IF(SUMIFS(${letra_peso_automatico}:${letra_peso_automatico},{_criterios_elegibilidade},'
+                f'${letra_peso_ajustado}:${letra_peso_ajustado},"")=0,"",'
+                f'${letra_peso_automatico}{r}/SUMIFS(${letra_peso_automatico}:${letra_peso_automatico},'
+                f'{_criterios_elegibilidade},${letra_peso_ajustado}:${letra_peso_ajustado},"")'
+                f'*(1-SUMIFS(${letra_peso_ajustado}:${letra_peso_ajustado},{_criterios_elegibilidade},'
+                f'${letra_peso_ajustado}:${letra_peso_ajustado},"<>")))))'
+            ),
+        )
+        # Contribuição na Obra = Peso Efetivo × % Execução do Serviço
+        # (pontos percentuais da Obra, REG-020). NÃO é o "% da Subetapa/
+        # Etapa" isolado (ver ressalva no cabeçalho da coluna).
+        ws.cell(
+            row=r,
+            column=COL_SRV_CONTRIBUICAO,
+            value=(
+                f'=IF(OR(${letra_peso_efetivo}{r}="",${letra_percentual}{r}=""),"",'
+                f'${letra_peso_efetivo}{r}*${letra_percentual}{r})'
+            ),
+        )
+
         ws.cell(
             row=r,
             column=COL_SRV_ID_SUBETAPA,
@@ -646,6 +912,36 @@ def _construir_aba_servicos(wb: Workbook, servicos: list, subetapas_por_id: dict
     ws.add_data_validation(dv_status)
     dv_status.add(f"L2:L{ultima_linha}")
 
+    # Etapa 7 — dropdown "Método de Execução" (REG-007, domínio fechado).
+    dv_metodo = DataValidation(
+        type="list", formula1=_LISTA_METODO_EXECUCAO, allow_blank=True,
+        showErrorMessage=True, errorTitle="Método inválido",
+        error="Selecione um dos métodos oficiais: " + ", ".join(_ROTULOS_METODO_EXECUCAO) + ".",
+    )
+    ws.add_data_validation(dv_metodo)
+    dv_metodo.add(f"{letra_metodo}2:{letra_metodo}{ultima_linha}")
+
+    # Dropdown "Status de Execução" (REG-007.2, domínio fechado) —
+    # relevante apenas quando Método = Status; disponível sempre, sem
+    # dependência condicional entre dropdowns (mesmo princípio de campos
+    # opcionais/independentes já usado em Compras, Etapa 6).
+    dv_status_exec = DataValidation(
+        type="list", formula1=_LISTA_STATUS_EXECUCAO, allow_blank=True,
+        showErrorMessage=True, errorTitle="Status de Execução inválido",
+        error="Selecione um dos status oficiais: " + ", ".join(_ROTULOS_STATUS_EXECUCAO) + ".",
+    )
+    ws.add_data_validation(dv_status_exec)
+    dv_status_exec.add(f"{letra_status_exec}2:{letra_status_exec}{ultima_linha}")
+
+    # Peso Ajustado (manual, REG-023): razão entre 0 e 1 (0% a 100%).
+    dv_peso_ajustado = DataValidation(
+        type="decimal", operator="between", formula1="0", formula2="1", allow_blank=True,
+        showErrorMessage=True, errorTitle="Peso inválido",
+        error="Informe um percentual entre 0% e 100%.",
+    )
+    ws.add_data_validation(dv_peso_ajustado)
+    dv_peso_ajustado.add(f"{letra_peso_ajustado}2:{letra_peso_ajustado}{ultima_linha}")
+
     # Quantidade e Valor Unitário: numéricos e não negativos (Seções 8/9).
     dv_quantidade = DataValidation(
         type="decimal",
@@ -685,6 +981,15 @@ def _construir_aba_servicos(wb: Workbook, servicos: list, subetapas_por_id: dict
             COL_SRV_VARIACAO,
         ):
             ws.cell(row=r, column=coluna).number_format = "#,##0.00"
+        ws.cell(row=r, column=COL_SRV_QTD_EXECUTADA_ACUM).number_format = "#,##0.00"
+        for coluna in (
+            COL_SRV_PERCENTUAL_EXECUCAO,
+            COL_SRV_PESO_AJUSTADO,
+            COL_SRV_PESO_AUTOMATICO,
+            COL_SRV_PESO_EFETIVO,
+            COL_SRV_CONTRIBUICAO,
+        ):
+            ws.cell(row=r, column=coluna).number_format = "0.00%"
 
     for indice_coluna, (_titulo, _largura, _oculta, calculada) in enumerate(COLUNAS_SERVICOS, start=1):
         if not calculada:
@@ -696,6 +1001,90 @@ def _construir_aba_servicos(wb: Workbook, servicos: list, subetapas_por_id: dict
 
     _aplicar_bordas(ws, ultima_linha, len(COLUNAS_SERVICOS))
     _registrar_tabela(ws, nome=NOME_TABELA_SERVICOS, ultima_linha=ultima_linha, n_colunas=len(COLUNAS_SERVICOS))
+    ws.freeze_panes = "A2"
+
+
+# --------------------------------------------------------------------
+# Aba: Execução (Etapa 7) — log de medições (REG-007, Método Quantitativo)
+# --------------------------------------------------------------------
+def _construir_aba_execucao(wb: Workbook, execucoes: list, servicos_por_id: dict) -> None:
+    """
+    1 linha = 1 medição (`ExecucaoMedicao`). Vínculo com o Serviço pelo
+    nome (Descrição), mesmo padrão de Compras (Etapa 6) — o ID técnico
+    fica em uma coluna oculta resolvida por INDEX/MATCH. Quantidade
+    Executada acumulada por Serviço, % de Execução do Serviço, Peso e
+    Contribuição na Obra são calculados na aba Serviços (colunas
+    O–T) — esta aba é só o registro/lançamento das medições em si.
+    """
+    ws = wb.create_sheet("Execução")
+    _escrever_cabecalho(ws, COLUNAS_EXECUCAO)
+
+    ultima_linha = 1 + len(execucoes) + LINHAS_MODELO
+    prefixo = PREFIXOS_ID["EXECUCAO_MEDICOES"]
+    letra_servico = get_column_letter(COL_EXE_SERVICO)
+
+    for r in range(2, ultima_linha + 1):
+        indice = r - 2
+        if indice < len(execucoes):
+            medicao = execucoes[indice]
+            servico = servicos_por_id.get(medicao.id_servico)
+            ws.cell(row=r, column=COL_EXE_ID, value=medicao.id)
+            ws.cell(row=r, column=COL_EXE_SERVICO, value=getattr(servico, "descricao", None))
+            celula_data = ws.cell(row=r, column=COL_EXE_DATA, value=medicao.data_medicao)
+            celula_data.number_format = "DD/MM/YYYY"
+            ws.cell(row=r, column=COL_EXE_QUANTIDADE, value=medicao.quantidade_executada)
+            ws.cell(row=r, column=COL_EXE_RESPONSAVEL, value=medicao.responsavel)
+        else:
+            ws.cell(
+                row=r,
+                column=COL_EXE_ID,
+                value=f'=IF($B{r}="","","{prefixo}-"&TEXT(ROW()-1,"0000"))',
+            )
+            ws.cell(row=r, column=COL_EXE_DATA).number_format = "DD/MM/YYYY"
+
+        # Coluna SEMPRE calculada por fórmula (linha literal ou não):
+        ws.cell(
+            row=r,
+            column=COL_EXE_ID_SERVICO,
+            value=(
+                f'=IF(${letra_servico}{r}="","",'
+                f'INDEX(Serviços!$A:$A,MATCH(${letra_servico}{r},Serviços!$B:$B,0)))'
+            ),
+        )
+
+    # Dropdown "Serviço" — nomes amigáveis (nunca IDs); mesma lista
+    # nomeada já usada pelo dropdown de Serviço em Compras (Etapa 6).
+    dv_servico = DataValidation(
+        type="list", formula1=NOME_INTERVALO_SERVICOS, allow_blank=True,
+        showErrorMessage=True, errorTitle="Serviço inválido",
+        error="Selecione um Serviço já cadastrado na aba Serviços.",
+    )
+    ws.add_data_validation(dv_servico)
+    dv_servico.add(f"{letra_servico}2:{letra_servico}{ultima_linha}")
+
+    # Quantidade Executada: numérica e não negativa (mesmo padrão de
+    # Quantidade Orçada/Valor — Etapas 3/4/6).
+    dv_quantidade = DataValidation(
+        type="decimal", operator="greaterThanOrEqual", formula1="0", allow_blank=True,
+        showErrorMessage=True, errorTitle="Quantidade inválida",
+        error="Informe um número maior ou igual a zero.",
+    )
+    ws.add_data_validation(dv_quantidade)
+    dv_quantidade.add(f"D2:D{ultima_linha}")
+
+    for r in range(2, ultima_linha + 1):
+        ws.cell(row=r, column=COL_EXE_QUANTIDADE).number_format = "#,##0.00"
+
+    for indice_coluna, (_titulo, _largura, _oculta, calculada) in enumerate(COLUNAS_EXECUCAO, start=1):
+        if not calculada:
+            continue
+        for r in range(2, ultima_linha + 1):
+            celula = ws.cell(row=r, column=indice_coluna)
+            celula.fill = PREENCHIMENTO_CALCULADO
+            celula.font = FONTE_CALCULADA
+
+    _aplicar_bordas(ws, ultima_linha, len(COLUNAS_EXECUCAO))
+    _registrar_tabela(ws, nome=NOME_TABELA_EXECUCAO, ultima_linha=ultima_linha, n_colunas=len(COLUNAS_EXECUCAO))
     ws.freeze_panes = "A2"
 
 

@@ -24,6 +24,16 @@ class MetodoExecucao(str, Enum):
     QUANTITATIVO = "quantitativo"
     STATUS = "status"
 
+    @property
+    def rotulo(self) -> str:
+        """Rótulo amigável em português (dropdown do Excel/interface) —
+        mesmo termo já usado no texto homologado de REG-007 (Etapa 7)."""
+        rotulos = {
+            MetodoExecucao.QUANTITATIVO: "Quantitativo",
+            MetodoExecucao.STATUS: "Status",
+        }
+        return rotulos[self]
+
 
 class StatusExecucao(str, Enum):
     """
@@ -48,6 +58,17 @@ class StatusExecucao(str, Enum):
             StatusExecucao.CONCLUIDO: 100.0,
         }
         return tabela[self]
+
+    @property
+    def rotulo(self) -> str:
+        """Rótulo amigável em português (dropdown do Excel/interface) —
+        mesmos 3 termos literais do texto homologado de REG-007.2 (Etapa 7)."""
+        rotulos = {
+            StatusExecucao.PENDENTE: "Pendente",
+            StatusExecucao.EM_ANDAMENTO: "Em andamento",
+            StatusExecucao.CONCLUIDO: "Concluído",
+        }
+        return rotulos[self]
 
 
 class TipoLancamentoFinanceiro(str, Enum):

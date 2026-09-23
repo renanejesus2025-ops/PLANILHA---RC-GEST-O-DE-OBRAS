@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import openpyxl
 import pytest
+from openpyxl.utils import get_column_letter
 
 from src.base_dados.repositorio import BaseDados
 from src.excel.construtor_workbook import (
@@ -128,7 +129,11 @@ def test_total_previsto_da_subetapa_referencia_valor_previsto_e_exclui_status(tm
     formula = ws_sub.cell(row=2, column=6).value  # coluna F: Total Previsto
     assert "SUMIFS(" in formula
     assert "Serviços!$J:$J" in formula  # soma o Valor Previsto (J), não o Valor Calculado
-    assert "Serviços!$M:$M" in formula  # casa pelo ID_Subetapa técnico (M) — nunca pelo nome
+    # Casa pelo ID_Subetapa técnico — nunca pelo nome (coluna deslocada
+    # pela Etapa 7, que acrescentou colunas de Execução física entre
+    # Status e o vínculo técnico; referenciada dinamicamente aqui).
+    letra_id_subetapa = get_column_letter(COL_SRV_ID_SUBETAPA)
+    assert f"Serviços!${letra_id_subetapa}:${letra_id_subetapa}" in formula
     assert "<>Cancelado" in formula
     assert "<>Retirado do Escopo" in formula
     assert "<>Substituído" in formula

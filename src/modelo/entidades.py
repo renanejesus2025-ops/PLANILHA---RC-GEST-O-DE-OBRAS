@@ -340,15 +340,26 @@ class Pagamento:
 
 @dataclass
 class ExecucaoMedicao:
-    """ENTIDADE: EXECUÇÃO/MEDIÇÕES (DAD_001)."""
+    """ENTIDADE: EXECUÇÃO/MEDIÇÕES (DAD_001). Motor de cálculo em
+    `src/execucao/calculos.py` (Etapa 7)."""
 
     id: str
     id_servico: str  # FK -> ServicoOrcamento.id
     data_medicao: date  # [P] — periodicidade não homologada
-    quantidade_executada: Optional[float] = None  # usado no Método Quantitativo (REG-007)
+    quantidade_executada: Optional[float] = None
+    # ^ usado no Método Quantitativo (REG-007). Numérica e não negativa —
+    # validada em `__post_init__` (Etapa 7, mesmo padrão de Quantidade
+    # Orçada/Valor Unitário desde a Etapa 3). Múltiplas medições do mesmo
+    # Serviço são ACUMULADAS (somadas), não substituídas — decisão de
+    # implementação da Etapa 7 (nenhuma fonte definiu o contrário; é a
+    # prática padrão de medição de obra), documentada em
+    # `src/execucao/calculos.py:quantidade_executada_acumulada`.
     responsavel: Optional[str] = None  # [P]
     evidencia_documento_id: Optional[str] = None  # FK -> Documento.id
     status: Optional[str] = None  # [H]
+
+    def __post_init__(self) -> None:
+        validar_numero_nao_negativo(self.quantidade_executada, "Quantidade Executada")
 
 
 @dataclass

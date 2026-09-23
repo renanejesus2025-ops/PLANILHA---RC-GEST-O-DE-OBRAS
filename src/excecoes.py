@@ -46,3 +46,15 @@ class ErroPagamentoDeTipoInvalido(ErroFundacaoTecnica):
     financeira de um Custo Realizado — não existe "pagamento" de um
     Aporte, de Outras Entradas ou de Outras Saídas).
     """
+
+
+class ErroDistribuicaoPesoInvalida(ErroFundacaoTecnica):
+    """
+    REG-025 (Etapa 7): todos os Serviços Elegíveis da Obra estão com
+    Peso Ajustado manualmente e a soma dos pesos deixou de totalizar
+    100% em decorrência de um evento (novo Serviço elegível, exclusão,
+    mudança de valor orçado). Não há nenhum Serviço com peso automático
+    disponível para absorver a redistribuição (REG-024) — o sistema não
+    redistribui nem altera nenhum peso manual existente; o operador
+    precisa readequar manualmente os pesos para voltar a somar 100%.
+    """

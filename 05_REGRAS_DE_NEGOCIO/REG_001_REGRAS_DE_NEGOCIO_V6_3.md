@@ -338,6 +338,15 @@
 - **Status:** [D] (princípio de não bloqueio; indicador textual sem cor/formatação condicional) / [H] (mecanismo técnico de restrição de visibilidade por perfil, herdado de SEC_001).
 - **Teste necessário:** ver Cenário F da homologação da Etapa 4 (`testes/test_financeiro.py`) — lançamento de despesa que ultrapassa o orçamento não levanta exceção; teste de que nenhuma formatação condicional foi criada na aba Resumo Financeiro (`testes/test_excel_financeiro.py`).
 
+### Nota de Implementação — Etapa 7 (2026-09-23, Execução/Medições — Progresso Físico)
+
+REG-007, REG-008, REG-019, REG-020, REG-021, REG-022, REG-023, REG-024 e REG-025 — todas já **[D] HOMOLOGADAS** desde 2026-09-16 (Revisões 4/5) — foram **implementadas em código** nesta etapa (`src/execucao/calculos.py`, `testes/test_execucao.py`, aba Excel "Execução" + colunas novas em "Serviços"). Nenhuma delas foi reaberta ou alterada em conteúdo; apenas construídas. Decisões de implementação necessárias (documentadas em `relatorios/PLANO_ETAPA_7_EXECUCAO_V1.md`, Seção 5, e não regras de negócio novas):
+- REG-022 (domínios fechados de elegibilidade em casos-limite): resolvido usando o mesmo domínio já homologado `StatusServico.integra_orcamento_corrente` (Etapa 3).
+- REG-024 (fórmula técnica exata da redistribuição proporcional): implementada como proporcional ao Peso Automático Bruto de cada Serviço automático entre si.
+- REG-020 (fórmula técnica de exibição do % isolado por Subetapa/Etapa): **permanece [H], não implementada** — expostos em vez disso "Peso Consolidado"/"Contribuição na Obra" (valores de grupo diretos, não um percentual isolado inventado).
+- REG-009 (limite de lançamento de medição, bloqueio vs. alerta — ainda [P]/[H] em conteúdo): resolvida na implementação por precedente do princípio já homologado em REG-010/REG-032 ("o sistema informa, o Operador decide") — medição acima de 100% não é bloqueada.
+- REG-008 (campos técnicos de rastreabilidade do ajuste manual): `ServicoOrcamento.peso_ajustado`/`peso_automatico_original` (já existentes desde a Etapa 1) passam a ser efetivamente lidos/calculados — nenhum campo novo foi criado.
+
 ---
 
 ## Regras citadas na tarefa sem informação suficiente para formalizar

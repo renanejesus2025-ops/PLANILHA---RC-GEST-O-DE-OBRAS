@@ -21,9 +21,10 @@ from __future__ import annotations
 from datetime import date
 
 import openpyxl
+from openpyxl.utils import get_column_letter
 
 from src.base_dados.repositorio import BaseDados
-from src.excel.construtor_workbook import LINHAS_MODELO, construir_workbook
+from src.excel.construtor_workbook import COLUNAS_ETAPAS, LINHAS_MODELO, construir_workbook
 from src.modelo.entidades import Alteracao, Etapa, Financeiro, Obra
 from src.modelo.enums import StatusAprovacaoAlteracao, TipoAlteracao, TipoLancamentoFinanceiro
 
@@ -46,7 +47,11 @@ def test_mais_de_30_etapas_sao_todas_escritas_e_a_tabela_cobre_o_intervalo_certo
     ws = openpyxl.load_workbook(caminho)["Etapas"]
 
     tabela = ws.tables["TabelaEtapas"]
-    assert tabela.ref == f"A1:F{1 + N_REGISTROS + LINHAS_MODELO}"
+    # Última coluna calculada dinamicamente a partir de COLUNAS_ETAPAS —
+    # a Etapa 7 acrescentou 2 colunas novas (Peso Consolidado/
+    # Contribuição na Obra), deslocando de F para H.
+    ultima_coluna = get_column_letter(len(COLUNAS_ETAPAS))
+    assert tabela.ref == f"A1:{ultima_coluna}{1 + N_REGISTROS + LINHAS_MODELO}"
 
     nomes = [ws.cell(row=r, column=2).value for r in range(2, 2 + N_REGISTROS)]
     assert nomes == [f"Etapa {i + 1}" for i in range(N_REGISTROS)]
