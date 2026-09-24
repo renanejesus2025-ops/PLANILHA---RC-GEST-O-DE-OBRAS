@@ -382,3 +382,39 @@ def test_nenhuma_validacao_de_dados_usa_referencia_estruturada(tmp_path):
                 if formula and re.search(r"Tabela\w+\[", str(formula)):
                     infracoes.append((ws.title, str(dv.sqref), formula))
     assert infracoes == [], f"validação de dados com referência estruturada: {infracoes}"
+
+
+def test_nenhuma_validacao_de_data_usa_string_iso_como_limite(tmp_path):
+    """
+    Regressão do achado C-2 da auditoria integrada das Etapas 1–8.
+
+    O Excel NÃO lê `"1900-01-01"` como literal de data numa validação de
+    dados: ele avalia a expressão aritmética `1900-1-1 = 1898`, e o
+    limite entregue vira "serial >= 1898" (≈ 13/03/1905) em vez de
+    01/01/1900. O limite precisa ser uma função de data (`DATE(a,m,d)`)
+    ou um serial numérico.
+
+    Este teste vale para TODAS as validações de data do workbook — as da
+    aba Início (Etapa 2) e as das abas Etapas/Subetapas (Etapa 8) — para
+    que o padrão defeituoso não volte por nenhuma delas.
+    """
+    caminho = tmp_path / "v.xlsx"
+    construir_workbook(BaseDados()).save(caminho)
+    wb = openpyxl.load_workbook(caminho)
+
+    validacoes_de_data = [
+        (ws.title, str(dv.sqref), dv.formula1)
+        for ws in wb.worksheets
+        for dv in ws.data_validations.dataValidation
+        if dv.type == "date"
+    ]
+    assert validacoes_de_data, "esperava ao menos uma validação de data no workbook"
+
+    invalidas = [
+        v for v in validacoes_de_data
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(v[2] or ""))
+    ]
+    assert invalidas == [], f"limite de data como string ISO (avaliado como aritmética): {invalidas}"
+
+    for aba, sqref, formula in validacoes_de_data:
+        assert formula == "DATE(1900,1,1)", f"{aba}!{sqref} usa limite inesperado: {formula!r}"

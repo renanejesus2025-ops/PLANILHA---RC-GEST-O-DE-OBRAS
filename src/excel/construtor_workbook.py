@@ -490,10 +490,21 @@ def _construir_aba_inicio(wb: Workbook, *, obra) -> None:
         celula_valor.border = BORDA_CELULA
         if tipo == "data":
             celula_valor.number_format = "DD/MM/YYYY"
+            # `DATE(1900,1,1)`, não a string `"1900-01-01"`: o Excel não
+            # lê essa string como literal de data — ele avalia a
+            # EXPRESSÃO aritmética `1900-1-1 = 1898`, e o limite
+            # entregue passava a ser "serial >= 1898" (≈ 13/03/1905) em
+            # vez de 01/01/1900. Defeito original da Etapa 2, apontado
+            # pela auditoria integrada das Etapas 1–8 (achado C-2) e
+            # corrigido aqui; as validações de data criadas na Etapa 8
+            # (`_adicionar_validacao_de_datas`) já nasceram corretas, de
+            # modo que o workbook tinha os dois padrões convivendo.
+            # Apenas o limite da validação muda — nenhuma regra de
+            # negócio, cálculo ou data de Etapa/Subetapa é afetada.
             dv = DataValidation(
                 type="date",
                 operator="greaterThanOrEqual",
-                formula1="1900-01-01",
+                formula1="DATE(1900,1,1)",
                 allow_blank=True,
                 showErrorMessage=True,
                 errorTitle="Data inválida",
