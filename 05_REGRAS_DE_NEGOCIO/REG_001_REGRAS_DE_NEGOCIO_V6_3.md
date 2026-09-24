@@ -347,6 +347,34 @@ REG-007, REG-008, REG-019, REG-020, REG-021, REG-022, REG-023, REG-024 e REG-025
 - REG-009 (limite de lançamento de medição, bloqueio vs. alerta — ainda [P]/[H] em conteúdo): resolvida na implementação por precedente do princípio já homologado em REG-010/REG-032 ("o sistema informa, o Operador decide") — medição acima de 100% não é bloqueada.
 - REG-008 (campos técnicos de rastreabilidade do ajuste manual): `ServicoOrcamento.peso_ajustado`/`peso_automatico_original` (já existentes desde a Etapa 1) passam a ser efetivamente lidos/calculados — nenhum campo novo foi criado.
 
+### Nota de Implementação — Etapa 8 (2026-09-23, Planejamento / Cronograma da Obra)
+
+Construído o módulo de cronograma. **Nenhuma regra existente foi reaberta ou alterada em conteúdo**, e nenhum threshold, alerta ou classificação foi inventado. **Nenhuma regra de negócio nova permanece em vigor** — ver o registro da regra rejeitada abaixo.
+
+**Conflito estrutural encontrado e resolvido (ver `DAD_001`, Revisão 12):** as datas do cronograma estavam modeladas em dois lugares (campos próprios de ETAPAS **e** entidade PLANEJAMENTO, com "1 Etapa → N Planejamento" sem significado definido), enquanto SUBETAPAS não tinha nenhum campo de data. **Decisão homologada pelo responsável do projeto em 2026-09-23 (Opção A):** as datas moram nas próprias ETAPAS/SUBETAPAS (fonte de verdade única); PLANEJAMENTO fica reservada, sem uso como tabela.
+
+Cálculos implementados (`src/modelo/entidades.py` como `@property` de `Etapa`/`Subetapa`; consolidação de Obra em `src/planejamento/calculos.py`; colunas calculadas nas abas Excel "Etapas"/"Subetapas" e cronograma consolidado na aba "Início"):
+- **Duração Prevista (dias)** = Data Fim Prevista − Data Início Prevista.
+- **Duração Real (dias)** = Data Fim Real − Data Início Real.
+- **Variação de Prazo (dias)** = Data Fim Real − Data Fim Prevista.
+- **Consolidação da Obra:** menor Data Início Prevista e maior Data Fim Prevista das Etapas. Valores **derivados e rotulados como tal** — não sobrescrevem as datas declaradas da própria OBRA (REG-032).
+
+**INDICADOR REJEITADO E REMOVIDO — "Variação de Prazo da Obra" (decisão do responsável do projeto, 2026-09-23, Alternativa D1).**
+- **O que era:** um indicador consolidado no nível da Obra, criado durante a Etapa 8, calculado como `MAX(Fim Real) − MAX(Fim Previsto)` das Etapas. Junto dele existia uma regra de supressão (então chamada "Regra 8.1") que o ocultava enquanto a Obra estivesse em andamento.
+- **Por que foi removido:** **não havia regra de negócio homologada que definisse seu significado** — nem o que torna "a Obra como um todo" atrasada. Além disso, o cálculo era defeituoso: `MAX(Fim Previsto)` é sempre o fim previsto da Obra, mas `MAX(Fim Real)` só é o fim real da Obra quando todas as Etapas previstas terminaram — antes disso é apenas "a última data concluída até agora". Os dois operandos podiam vir de **Etapas diferentes**. Numa Obra com a Fundação concluída em 10/05 e a Alvenaria prevista para 31/08 ainda em execução, a conta dava −113 dias, lido como "113 dias de **antecipação**" numa obra **atrasada**.
+- **Decisão homologada:** remover o indicador. **Não** foi criada regra nova para determinar quando a Obra está atrasada, **nem** o indicador foi redefinido para "Etapas concluídas". A regra de supressão foi removida junto — ela não existe mais e **não tem mais classificação [H]**, por não ser mais uma regra do sistema.
+- **Onde a informação de prazo permanece:** **Variação de Prazo por Etapa e por Subetapa** (`Etapa.variacao_prazo_dias` / `Subetapa.variacao_prazo_dias`), níveis em que o indicador tem significado direto e já definido, com os dois operandos sempre do mesmo registro. As **datas consolidadas da Obra** (menor Início Previsto / maior Fim Previsto) continuam existindo normalmente.
+- **Removidos do código:** `variacao_prazo_obra_dias`, `duracao_real_obra_dias` (mesma fragilidade de operando) e `ha_etapa_prevista_nao_concluida` (predicado que existia só para a supressão), além da célula correspondente na aba Início. **Não recriar sem homologação prévia da regra de negócio.**
+- **Regressão preservada:** o cenário dos −113 dias permanece na suíte (`test_cenario3_nenhuma_funcao_produz_o_resultado_enganoso_de_113_dias`), agora com a finalidade de provar que nenhuma função produz o número enganoso, que a Etapa concluída reporta corretamente a sua própria variação, e que a Etapa em andamento não gera variação consolidada alguma.
+
+Decisões de implementação (não são regras de negócio novas):
+- **Subtração pura de datas**, sem `+1` de contagem inclusiva — duas datas iguais dão 0 dias. Nenhuma fonte define contagem inclusiva; a subtração pura é a mesma operação de REG-005/REG-010/REG-028. Contagem inclusiva, se desejada, é item de homologação.
+- **Convenção de sinal:** Variação de Prazo positiva = atraso, negativa = antecipação — a mesma já homologada em ALTERAÇÕES/"Impacto no Prazo" (Etapa 5).
+- **Ausência de data = "não calculável"** (`None`/célula vazia), nunca 0 nem uma data inventada — mesmo princípio de REG-031/REG-010.
+- **Datas invertidas ou duração negativa não são bloqueadas** — o sistema informa, o Operador decide (REG-032/REG-010).
+
+**REG-014 — Alerta de Atraso de Cronograma: permanece integralmente [H], não implementado.** O texto da própria regra diz "Resultado: não definido" e o threshold de dias nunca foi homologado. A Variação de Prazo é exposta como **número simples, sem cor, ícone ou classificação** — mesmo tratamento dado à Variação de REG-028 (Etapa 3) e à ausência de alertas na Etapa 7. Por dependerem desse threshold, também permanecem [H] e não implementados: o campo calculado "Status do Prazo" (DAD_001/PLANEJAMENTO) e a lógica de encadeamento/dependência entre Etapas (tipo Gantt).
+
 ---
 
 ## Regras citadas na tarefa sem informação suficiente para formalizar
@@ -357,6 +385,7 @@ REG-007, REG-008, REG-019, REG-020, REG-021, REG-022, REG-023, REG-024 e REG-025
 - **Pesos:** **[D] amplamente HOMOLOGADO em 2026-09-16 (Revisões 4 e 5)** — ver REG-008 (peso automático global a partir do valor orçado, sem renormalização por nível), REG-020 (uso do peso na consolidação hierárquica), REG-022 (elegibilidade), REG-023 (proteção do peso manual), REG-024 (redistribuição proporcional entre automáticos) e REG-025 (bloqueio quando todos os pesos são manuais). Permanecem [H]: campos técnicos definitivos de rastreabilidade do ajuste manual (REG-008), domínios fechados que operacionalizam a elegibilidade (REG-022) e fórmula técnica exata da redistribuição proporcional (REG-024).
 - **Método de execução do Serviço:** **[D] HOMOLOGADO em 2026-09-16 (Revisão 5)** — ver REG-007 (fórmula do método quantitativo e tabela fechada do método por status: Pendente 0% / Em andamento 50% / Concluído 100%). Permanecem [H]: lista de serviços por método, arredondamento/tolerância, tratamento de excedente e de quantidade planejada zero.
 - **Medições — periodicidade:** ver DAD_001 (entidade EXECUÇÃO/MEDIÇÕES) — não definida.
+- **Cronograma — onde moram as datas (ETAPAS × entidade PLANEJAMENTO):** **[C] RESOLVIDO em 2026-09-23 (Etapa 8, Opção A)** — as datas moram nas próprias ETAPAS/SUBETAPAS (fonte de verdade única); PLANEJAMENTO fica reservada, sem uso como tabela. Ver `DAD_001` Revisão 12 e a Nota de Implementação — Etapa 8 acima. Permanecem [H]: threshold de atraso (REG-014), "Status do Prazo", encadeamento tipo Gantt e o significado do "N" de "1 Etapa → N Planejamento".
 - **Subetapas como entidade própria:** **[C] RESOLVIDO em 2026-09-16** — ver REG-019 (hierarquia oficial OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO) e `DAD_001` (entidade SUBETAPAS).
 - **Orçamento previsto dos serviços:** **[D] HOMOLOGADO em 2026-09-16 (Revisão 6)** — ver REG-003 (atualizada), REG-026 (Valor Previsto/Valor Calculado/Ajuste Manual) e REG-028 (Variação). Permanecem [H]/fora de escopo: Orçamento Vigente completo (REG-017), variação percentual, alertas de desvio.
 - **Status do Serviço/Orçamento:** **[D] HOMOLOGADO em 2026-09-16 (Revisão 6)** — ver REG-027 (domínio fechado Ativo/Concluído/Cancelado/Retirado do Escopo/Substituído). Permanece [H]: fluxo de transição entre status.

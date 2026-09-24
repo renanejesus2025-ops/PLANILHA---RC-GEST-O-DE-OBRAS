@@ -398,3 +398,46 @@ def test_hierarquia_e_ids_permanecem_consistentes_apos_execucao():
         list(base.obras) + list(base.etapas) + list(base.subetapas) + list(base.servicos) + list(base.execucoes)
     )
     assert len(todos_os_ids) == len(set(todos_os_ids))
+
+
+# ----------------------------------------------------------------------
+# D-COM-2 (Etapa 8.2) — base proporcional zero: Python × Excel equivalentes
+# ----------------------------------------------------------------------
+def test_peso_efetivo_divide_igualmente_quando_todos_elegiveis_tem_valor_zero():
+    """Ramo `total_bruto_automaticos == 0` de `pesos_efetivos_obra`
+    (Etapa 7): sem base proporcional, a faixa é dividida igualmente.
+    Cobre o cenário que, no Excel, produzia `#DIV/0!` até a Etapa 8.2."""
+    base = BaseDados()
+    _obra, _etapa, subetapa = _hierarquia(base)
+    a = _servico(base, subetapa.id, quantidade=0, valor_unitario=0, descricao="A")
+    b = _servico(base, subetapa.id, quantidade=0, valor_unitario=0, descricao="B")
+    assert peso_automatico_bruto(base, a.id) is None  # não calculável (denominador zero)
+    pesos = pesos_efetivos_obra(base, _obra.id)
+    assert pesos[a.id] == pytest.approx(50.0)
+    assert pesos[b.id] == pytest.approx(50.0)
+    assert sum(pesos.values()) == pytest.approx(100.0)
+
+
+def test_peso_manual_convive_com_base_zero_sem_quebrar_a_soma():
+    """Peso manual protegido (REG-023) + automáticos sem base
+    proporcional: os automáticos dividem igualmente a faixa restante."""
+    base = BaseDados()
+    _obra, _etapa, subetapa = _hierarquia(base)
+    manual = _servico(base, subetapa.id, quantidade=0, valor_unitario=0, descricao="Manual", peso_ajustado=25.0)
+    auto = _servico(base, subetapa.id, quantidade=0, valor_unitario=0, descricao="Auto")
+    pesos = pesos_efetivos_obra(base, _obra.id)
+    assert pesos[manual.id] == 25.0  # protegido
+    assert pesos[auto.id] == pytest.approx(75.0)
+    assert sum(pesos.values()) == pytest.approx(100.0)
+
+
+def test_servico_com_valor_zero_ao_lado_de_positivo_recebe_peso_zero():
+    """Com base proporcional válida, o serviço orçado em zero recebe peso
+    zero — e não aciona o ramo de divisão igualitária."""
+    base = BaseDados()
+    _obra, _etapa, subetapa = _hierarquia(base)
+    zero = _servico(base, subetapa.id, quantidade=0, valor_unitario=0, descricao="Zero")
+    positivo = _servico(base, subetapa.id, quantidade=1, valor_unitario=1000, descricao="Positivo")
+    pesos = pesos_efetivos_obra(base, _obra.id)
+    assert pesos[zero.id] == pytest.approx(0.0)
+    assert pesos[positivo.id] == pytest.approx(100.0)

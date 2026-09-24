@@ -67,9 +67,41 @@ class Obra:
     responsavel_tecnico: Optional[str] = None  # [P]
 
 
+def dias_entre(inicio: Optional[date], fim: Optional[date]) -> Optional[int]:
+    """
+    Diferença em dias entre duas datas — `None` quando qualquer uma das
+    duas ainda não foi informada ("não calculável", nunca 0; mesmo
+    princípio já homologado em REG-031/REG-010 para divisão por zero).
+
+    **Convenção adotada na Etapa 8 (decisão de implementação, não regra
+    de negócio nova):** subtração pura (`fim − início`) — duas datas
+    iguais resultam em 0 dias, sem `+1` de contagem inclusiva. Nenhuma
+    fonte define contagem inclusiva; a subtração pura é a mesma operação
+    já usada em toda variação/saldo do projeto (REG-005, REG-028,
+    REG-010). Contagem inclusiva, se desejada, é item de homologação.
+
+    O resultado pode ser NEGATIVO (fim anterior ao início, ou prazo
+    antecipado) — isso é informação válida, não erro: mesma convenção de
+    sinal já homologada em `Alteracao.impacto_prazo_dias` ("pode ser
+    negativo — antecipação de prazo", DAD_001/ALTERAÇÕES, Etapa 5).
+    """
+    if inicio is None or fim is None:
+        return None
+    return (fim - inicio).days
+
+
 @dataclass
 class Etapa:
-    """ENTIDADE: ETAPAS (DAD_001). N Etapas por Obra."""
+    """ENTIDADE: ETAPAS (DAD_001). N Etapas por Obra.
+
+    **Etapa 8 (Planejamento/Cronograma da Obra):** os 4 campos de data
+    abaixo — que existiam no modelo desde a Etapa 1 mas nunca haviam
+    sido expostos nem calculados — passam a ser a **fonte de verdade
+    única** do cronograma desta Etapa (decisão homologada pelo
+    responsável do projeto em 2026-09-23, Opção A). A entidade
+    PLANEJAMENTO permanece reservada no modelo, sem uso como tabela
+    paralela — ver sua docstring.
+    """
 
     id: str
     id_obra: str  # FK -> Obra.id
@@ -81,18 +113,69 @@ class Etapa:
     data_fim_real: Optional[date] = None  # [P]
     status: Optional[str] = None  # Status da Etapa — [H]
 
+    @property
+    def duracao_prevista_dias(self) -> Optional[int]:
+        """Data Fim Prevista − Data Início Prevista (Etapa 8). Ver `dias_entre`."""
+        return dias_entre(self.data_inicio_prevista, self.data_fim_prevista)
+
+    @property
+    def duracao_real_dias(self) -> Optional[int]:
+        """Data Fim Real − Data Início Real (Etapa 8). Ver `dias_entre`."""
+        return dias_entre(self.data_inicio_real, self.data_fim_real)
+
+    @property
+    def variacao_prazo_dias(self) -> Optional[int]:
+        """
+        Variação de Prazo = Data Fim Real − Data Fim Prevista (Etapa 8).
+        Positivo = atraso; negativo = antecipação (mesma convenção de
+        sinal de `Alteracao.impacto_prazo_dias`). Termo "Variação",
+        nunca "Desvio" — reservado aos alertas de REG-013/014/015,
+        ainda [H]. **Nenhum threshold de alerta é aplicado aqui**
+        (REG-014 permanece [H]: "Resultado: não definido").
+        """
+        return dias_entre(self.data_fim_prevista, self.data_fim_real)
+
 
 @dataclass
 class Subetapa:
     """ENTIDADE: SUBETAPAS (DAD_001, [D] HOMOLOGADO em 2026-09-16).
 
     N Subetapas por Etapa (REG-019, vínculo obrigatório).
+
+    **Etapa 8 (Planejamento/Cronograma da Obra):** os 4 campos de data
+    abaixo são **novos nesta etapa** — SUBETAPAS não possuía nenhum
+    campo de data no modelo, embora `UI_001` já previsse a tela
+    "Cronograma da Obra" exibindo "as datas previstas e reais das
+    Etapas/**Subetapas**". Acrescentados com o mesmo conjunto e a mesma
+    semântica já existentes em ETAPAS (decisão homologada em
+    2026-09-23, Opção A), para que a Subetapa tenha fonte de verdade
+    própria — sem tabela paralela.
     """
 
     id: str
     id_etapa: str  # FK -> Etapa.id (obrigatória, REG-019)
     nome: str  # [P] — rótulo amigável (ex.: "Alvenaria interna")
+    data_inicio_prevista: Optional[date] = None  # [P] — novo na Etapa 8
+    data_fim_prevista: Optional[date] = None  # [P] — novo na Etapa 8
+    data_inicio_real: Optional[date] = None  # [P] — novo na Etapa 8
+    data_fim_real: Optional[date] = None  # [P] — novo na Etapa 8
     status: Optional[str] = None  # [H] domínio fechado não homologado
+
+    @property
+    def duracao_prevista_dias(self) -> Optional[int]:
+        """Data Fim Prevista − Data Início Prevista (Etapa 8). Ver `dias_entre`."""
+        return dias_entre(self.data_inicio_prevista, self.data_fim_prevista)
+
+    @property
+    def duracao_real_dias(self) -> Optional[int]:
+        """Data Fim Real − Data Início Real (Etapa 8). Ver `dias_entre`."""
+        return dias_entre(self.data_inicio_real, self.data_fim_real)
+
+    @property
+    def variacao_prazo_dias(self) -> Optional[int]:
+        """Variação de Prazo = Fim Real − Fim Prevista (Etapa 8). Mesma
+        semântica e ressalvas de `Etapa.variacao_prazo_dias`."""
+        return dias_entre(self.data_fim_prevista, self.data_fim_real)
 
 
 @dataclass
@@ -206,10 +289,29 @@ class ServicoOrcamento:
 
 @dataclass
 class Planejamento:
-    """ENTIDADE: PLANEJAMENTO (DAD_001). Datas previstas/reais por Etapa/Subetapa.
+    """ENTIDADE: PLANEJAMENTO (DAD_001) — **RESERVADA, sem uso como tabela
+    a partir da Etapa 8.**
 
-    Granularidade exata (só Etapa? só Subetapa? ambos?) é [H] — por isso
-    os dois vínculos são opcionais aqui.
+    A Etapa 8 encontrou uma duplicidade estrutural no próprio modelo: as
+    datas do cronograma estavam modeladas em DOIS lugares — nos campos
+    próprios de ETAPAS (Data Início/Fim Prevista e Real, presentes desde
+    a Etapa 1) e nesta entidade separada (DAD_001 declara "1 Etapa → N
+    Planejamento (datas)"). Nenhuma fonte — corrente ou histórica (os
+    três documentos históricos de Planejamento são templates vazios) —
+    definia qual era a fonte de verdade nem o que significava o "N".
+
+    **Decisão homologada pelo responsável do projeto em 2026-09-23
+    (Opção A):** as datas moram nas próprias ETAPAS/SUBETAPAS, com fonte
+    de verdade única por registro; a tela "Cronograma da Obra" é uma
+    VISÃO desses registros, não um cadastro paralelo. Esta entidade é
+    preservada no modelo (nada foi apagado — `BaseDados.
+    adicionar_planejamento` continua funcionando e testado, Etapa 1) mas
+    **não é usada como tabela** e não tem aba no Excel. Reabrir seu uso
+    exige homologar antes o significado do "N" (replanejamentos?
+    janelas? marcos?), que permanece indefinido.
+
+    Granularidade exata (só Etapa? só Subetapa? ambos?) era [H] — por
+    isso os dois vínculos seguem opcionais aqui.
     """
 
     id: str

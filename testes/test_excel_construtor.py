@@ -24,6 +24,7 @@ sequencial (o padrão embute `ROW()`, garantindo unicidade quando calculado).
 
 from __future__ import annotations
 
+import re
 import zipfile
 import xml.etree.ElementTree as ET
 from datetime import date
@@ -353,3 +354,31 @@ def test_reabertura_com_data_only_nao_gera_erro(tmp_path):
     construir_workbook(BaseDados()).save(caminho)
     wb = openpyxl.load_workbook(caminho, data_only=True)
     assert wb.sheetnames == ABAS_ESPERADAS
+
+
+def test_nenhuma_validacao_de_dados_usa_referencia_estruturada(tmp_path):
+    """
+    Regressão da validação Excel/COM da Etapa 8 (2026-09-23).
+
+    O Excel **não aceita referência estruturada de Tabela**
+    (`Tabela[Coluna]`) dentro de uma fórmula de validação de dados: ele
+    recusa o arquivo inteiro como corrompido. Esse defeito, introduzido
+    na Etapa 5.1, fez com que **nenhuma versão de V5 a V8 abrisse no
+    Excel real** — e passou despercebido porque a verificação por
+    openpyxl não executa o Excel.
+
+    Validações que precisam apontar para uma coluna de Tabela devem usar
+    o INTERVALO NOMEADO correspondente (`Lista_*`), que o Excel aceita e
+    que continua sem range fixo (AUD-20/AUD-21 preservado).
+    """
+    caminho = tmp_path / "v.xlsx"
+    construir_workbook(BaseDados()).save(caminho)
+    wb = openpyxl.load_workbook(caminho)
+
+    infracoes = []
+    for ws in wb.worksheets:
+        for dv in ws.data_validations.dataValidation:
+            for formula in (dv.formula1, dv.formula2):
+                if formula and re.search(r"Tabela\w+\[", str(formula)):
+                    infracoes.append((ws.title, str(dv.sqref), formula))
+    assert infracoes == [], f"validação de dados com referência estruturada: {infracoes}"

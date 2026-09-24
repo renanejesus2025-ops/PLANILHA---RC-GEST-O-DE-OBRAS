@@ -156,3 +156,96 @@ def test_inicio_tem_linha_de_execucao_fisica_da_obra(tmp_path):
     linha = rotulos.index("% Execução Física da Obra") + 1
     formula = ws.cell(row=linha, column=2).value
     assert "SUM(" in formula and "TabelaEtapas" in formula
+
+
+# ----------------------------------------------------------------------
+# D-COM-2 (Etapa 8.2) — divisão por zero NUNCA pode virar #DIV/0!
+# ----------------------------------------------------------------------
+def _formula_peso_automatico(tmp_path):
+    caminho = tmp_path / "v.xlsx"
+    construir_workbook(BaseDados()).save(caminho)
+    ws = openpyxl.load_workbook(caminho)["Serviços"]
+    return ws.cell(row=2, column=COL_SRV_PESO_AUTOMATICO).value
+
+
+def test_peso_automatico_trata_denominador_zero_como_nd(tmp_path):
+    """
+    D-COM-2: o denominador do Peso Automático (Σ Valor Previsto dos
+    Serviços Elegíveis) pode ser zero — basta que todos os elegíveis
+    estejam orçados em 0. Sem guarda, o Excel devolvia `#DIV/0!`, que se
+    propagava até `Início!B9`. REG-031 exige "não calculável" ("N/D"),
+    nunca erro. O Python já retornava `None`.
+    """
+    formula = _formula_peso_automatico(tmp_path)
+    assert '"N/D"' in formula
+    assert "=0," in formula  # guarda explícita de denominador zero
+
+
+def test_peso_efetivo_distribui_igualmente_quando_base_proporcional_e_zero(tmp_path):
+    """Espelha o ramo `total_bruto_automaticos == 0` de
+    `pesos_efetivos_obra` (Etapa 7): a faixa restante é dividida
+    igualmente entre os automáticos elegíveis, via COUNTIFS."""
+    caminho = tmp_path / "v.xlsx"
+    construir_workbook(BaseDados()).save(caminho)
+    ws = openpyxl.load_workbook(caminho)["Serviços"]
+    formula = ws.cell(row=2, column=COL_SRV_PESO_EFETIVO).value
+    assert "SUMPRODUCT(ISNUMBER(" in formula
+
+
+def test_nenhuma_divisao_do_workbook_fica_sem_guarda(tmp_path):
+    """
+    Auditoria de toda a cadeia (exigida pela Etapa 8.2), não só de
+    `Início!B9`: toda fórmula que divide precisa proteger o denominador.
+    Sem isso, um `#DIV/0!` atravessa Peso Automático → Peso Efetivo →
+    Contribuição → Subetapa → Etapa → Obra → Início.
+    """
+    caminho = tmp_path / "v.xlsx"
+    construir_workbook(BaseDados()).save(caminho)
+    wb = openpyxl.load_workbook(caminho)
+
+    desprotegidas = []
+    for nome in wb.sheetnames:
+        for linha in wb[nome].iter_rows():
+            for celula in linha:
+                valor = celula.value
+                if not (isinstance(valor, str) and valor.startswith("=") and "/" in valor):
+                    continue
+                # "Despesa/Custo" é rótulo de domínio, não divisão.
+                if "/" not in valor.replace("Despesa/Custo", ""):
+                    continue
+                # Toda divisão legítima do projeto é guardada por um IF
+                # que testa vazio ou zero antes de dividir.
+                if not ('=0,' in valor or '="",' in valor or '=0,"N/D"' in valor):
+                    desprotegidas.append((nome, celula.coordinate, valor))
+    assert desprotegidas == [], f"divisão sem guarda de denominador: {desprotegidas}"
+
+
+def test_percentual_execucao_da_obra_e_nd_quando_nao_ha_servico_elegivel(tmp_path):
+    """
+    Etapa 8.2 (item 11.1): sem nenhum Serviço Elegível (REG-022), o `SUM`
+    de uma coluna vazia devolvia 0 e a tela exibia "0,00% executado" —
+    enquanto `percentual_execucao_obra` (Python) devolve `None`, "não
+    calculável". Ler 0% onde não há base de cálculo é a mesma leitura
+    inválida que REG-031 proíbe para divisão por zero.
+    """
+    caminho = tmp_path / "v.xlsx"
+    construir_workbook(BaseDados()).save(caminho)
+    ws = openpyxl.load_workbook(caminho)["Início"]
+    rotulos = [ws.cell(row=r, column=1).value for r in range(1, 14)]
+    linha = rotulos.index("% Execução Física da Obra") + 1
+    formula = ws.cell(row=linha, column=2).value
+    assert '"N/D"' in formula
+    assert "SUMPRODUCT(ISNUMBER(" in formula  # contagem de elegíveis, sem range fixo
+    assert "SUM(TabelaEtapas[" in formula  # o cálculo em si permanece
+
+
+def test_contagem_de_elegiveis_espelha_os_criterios_do_python(tmp_path):
+    """A contagem usada na guarda precisa aplicar exatamente os mesmos
+    critérios de exclusão de REG-022 que `servico_elegivel_execucao`."""
+    caminho = tmp_path / "v.xlsx"
+    construir_workbook(BaseDados()).save(caminho)
+    ws = openpyxl.load_workbook(caminho)["Início"]
+    rotulos = [ws.cell(row=r, column=1).value for r in range(1, 14)]
+    formula = ws.cell(row=rotulos.index("% Execução Física da Obra") + 1, column=2).value
+    for excluido in ("Cancelado", "Retirado do Escopo", "Substituído"):
+        assert f'<>"{excluido}"' in formula

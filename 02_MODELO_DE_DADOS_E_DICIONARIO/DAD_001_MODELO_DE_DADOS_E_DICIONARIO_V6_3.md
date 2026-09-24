@@ -70,15 +70,20 @@ A base operacional é a fonte estruturada para interface, cálculos, auditoria e
 | Nome da Etapa | Texto | Sim | Usuário | Digitado | — | Lista de nomes reais não é fechada (obra a obra pode variar) | [P] |
 | Ordem/Sequência | Número | Sim | Usuário | Digitado | — | — | [P] |
 | Peso da Etapa | Número/% | Não (agregado, não é campo primário) | Sistema | Calculado (Σ dos Pesos Automáticos **globais** — REG-008 — dos Serviços Elegíveis vinculados à Etapa via Subetapas) | Usado na exibição do progresso consolidado da Etapa (REG-020) | **Peso automático homologado em 2026-09-16 (REG-008/REG-020, detalhado na Revisão 5):** o peso de cada Serviço é sempre global (denominador = Σ Valor Orçado dos Serviços Elegíveis da Obra); "Peso da Etapa" é apenas a soma dos pesos globais dos Serviços que caem sob essa Etapa — **não é recalculado/renormalizado** dentro da Etapa | [D] |
-| Data Início Prevista | Data | Sim | Usuário | Digitado | — | — | [P] |
-| Data Fim Prevista | Data | Sim | Usuário | Digitado | — | — | [P] |
-| Data Início Real | Data | Não | Usuário | Digitado | — | — | [P] |
-| Data Fim Real | Data | Não | Usuário | Digitado | — | — | [P] |
+| Data Início Prevista | Data | Sim | Usuário | Digitado | — | **[D] a partir da Etapa 8** — fonte de verdade única do cronograma desta Etapa (Revisão 12, Opção A). Existia desde a Revisão 1, mas nunca havia sido exposta nem calculada | [D] |
+| Data Fim Prevista | Data | Sim | Usuário | Digitado | Base da Variação de Prazo (ver campos calculados abaixo) | **[D] a partir da Etapa 8** — mesma regra do campo acima | [D] |
+| Data Início Real | Data | Não | Usuário | Digitado | — | **[D] a partir da Etapa 8** — mesma regra do campo acima | [D] |
+| Data Fim Real | Data | Não | Usuário | Digitado | Base da Variação de Prazo (ver campos calculados abaixo) | **[D] a partir da Etapa 8** — mesma regra do campo acima | [D] |
 | % Execução Física | % | Sim | Sistema | Calculado (consolidação ponderada dos Serviços da Etapa, via Subetapas, usando o Peso Automático **global** de cada Serviço — REG-008/REG-020) | Depende de SUBETAPAS/SERVIÇOS/EXECUÇÃO-MEDIÇÕES | **Modelo Híbrido homologado em 2026-09-16** (REG-007/REG-020/REG-022): usa o % de execução de cada Serviço (fórmula quantitativa ou tabela fechada de status, ambas [D] desde a Revisão 5) e o peso global de cada Serviço Elegível. Como os pesos são globais (não somam 100% dentro de uma única Etapa), **a fórmula técnica exata para exibir um percentual 0–100% isolado da Etapa permanece [H]** (REG-020) — nenhuma normalização foi inventada aqui | [D] (princípio da consolidação ponderada com pesos globais) / [H] (fórmula técnica de exibição do percentual isolado) |
 | Status da Etapa | Domínio | Sim | Sistema | Calculado | — | Lista fechada não homologada | [H] |
 | Orçamento Previsto da Etapa | Moeda | Sim | Calculado | Calculado | Soma de SERVIÇOS/ORÇAMENTO de todas as Subetapas da Etapa | Roteamento de soma ajustado nesta revisão: antes somava Serviços diretamente da Etapa; agora soma via Subetapas, conforme hierarquia oficial | [P] |
 
-**Relacionamentos:** 1 Etapa → N Subetapas (relação oficial e obrigatória — hierarquia homologada em 2026-09-16, ver ENTIDADE: SUBETAPAS); 1 Etapa → N Planejamento (datas). **A partir desta revisão, Serviços/Orçamento não se vincula mais diretamente a Etapas — o vínculo passa a ser Etapa → Subetapa → Serviço (ver hierarquia oficial).** [D]
+**Campos calculados derivados (não são colunas digitáveis — vivem como `@property` em `Etapa`/`src/modelo/entidades.py` e nas colunas calculadas da aba Excel "Etapas") — novos na Etapa 8:**
+- **Duração Prevista (dias)** = Data Fim Prevista − Data Início Prevista (subtração pura, sem contagem inclusiva — ver Revisão 12); `None`/vazio quando falta alguma das duas.
+- **Duração Real (dias)** = Data Fim Real − Data Início Real; mesmo tratamento de ausência.
+- **Variação de Prazo (dias)** = Data Fim Real − Data Fim Prevista. Positivo = atraso; negativo = antecipação. Número simples, **sem cor/ícone/alerta** — o threshold de REG-014 permanece [H].
+
+**Relacionamentos:** 1 Etapa → N Subetapas (relação oficial e obrigatória — hierarquia homologada em 2026-09-16, ver ENTIDADE: SUBETAPAS). **A partir da Etapa 8 (Revisão 12), o relacionamento "1 Etapa → N Planejamento (datas)" deixa de valer na prática:** as datas passaram a morar na própria ETAPA (fonte de verdade única) e a entidade PLANEJAMENTO ficou reservada, sem uso como tabela — ver ENTIDADE: PLANEJAMENTO. **A partir da Revisão 3, Serviços/Orçamento não se vincula mais diretamente a Etapas — o vínculo passa a ser Etapa → Subetapa → Serviço (ver hierarquia oficial).** [D]
 
 ---
 
@@ -108,7 +113,13 @@ OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO
 | Nome da Subetapa | Texto | Sim | Usuário | Digitado | — | Nome real e familiar (ver exemplo "Alvenaria interna") | [P] |
 | Peso da Subetapa | Número/% | Não (agregado, não é campo primário) | Sistema | Calculado (Σ dos Pesos Automáticos **globais** — REG-008 — dos Serviços Elegíveis vinculados à Subetapa) | Usado na exibição do progresso consolidado da Subetapa (REG-020) | **Peso automático homologado em 2026-09-16 (Revisão 4), escopo global definido na Revisão 5 (REG-008/REG-020):** cada Serviço tem um único peso global (denominador = Σ Valor Orçado dos Serviços Elegíveis da Obra); "Peso da Subetapa" é apenas a soma desses pesos globais — não é recalculado/renormalizado dentro da Subetapa. Ajuste manual de peso é admitido como exceção e fica protegido (REG-023); campos técnicos de rastreabilidade permanecem [H] (ver ENTIDADE: SERVIÇOS/ORÇAMENTO) | [D] |
 | % Execução | % | Sim | Sistema | Calculado (consolidação ponderada dos Serviços da Subetapa, usando o Peso Automático **global** de cada Serviço — REG-008/REG-020) | Depende de EXECUÇÃO/MEDIÇÕES e do Método de Execução (REG-007) dos Serviços da Subetapa | **Modelo Híbrido homologado em 2026-09-16** (REG-007/REG-020/REG-022) — % de execução por Serviço e pesos globais já definidos [D]; a fórmula técnica exata para exibir um percentual 0–100% isolado da Subetapa (dado que os pesos são globais) permanece [H] (REG-020) | [D] (princípio) / [H] (fórmula técnica de exibição do percentual isolado) |
+| Data Início Prevista | Data | Não | Usuário | Digitado | — | **Campo NOVO na Etapa 8 (Revisão 12).** SUBETAPAS não possuía nenhum campo de data, embora `UI_001` já previsse a tela "Cronograma da Obra" exibindo as datas "das Etapas/Subetapas". Mesma semântica de ETAPAS; opcional — Subetapas cadastradas antes da Etapa 8 continuam válidas, sem migração | [P] |
+| Data Fim Prevista | Data | Não | Usuário | Digitado | Base da Variação de Prazo (ver campos calculados abaixo) | **Campo NOVO na Etapa 8** — mesma regra do campo acima | [P] |
+| Data Início Real | Data | Não | Usuário | Digitado | — | **Campo NOVO na Etapa 8** — mesma regra do campo acima | [P] |
+| Data Fim Real | Data | Não | Usuário | Digitado | Base da Variação de Prazo (ver campos calculados abaixo) | **Campo NOVO na Etapa 8** — mesma regra do campo acima | [P] |
 | Status | Domínio | Sim | Sistema | Calculado | — | Lista fechada não homologada | [H] |
+
+**Campos calculados derivados (novos na Etapa 8 — mesmos três de ETAPAS, mesma semântica e mesmas ressalvas):** Duração Prevista (dias), Duração Real (dias) e Variação de Prazo (dias). Vivem como `@property` em `Subetapa` e nas colunas calculadas da aba Excel "Subetapas".
 
 **Relacionamentos oficiais — [D]:**
 - N Subetapas → 1 Etapa (obrigatório).
@@ -163,7 +174,11 @@ OBRAS → ETAPAS → SUBETAPAS → SERVIÇOS/ORÇAMENTO
 
 ---
 
-## ENTIDADE: PLANEJAMENTO
+## ENTIDADE: PLANEJAMENTO — **RESERVADA (sem uso como tabela a partir da Etapa 8, Revisão 12)**
+
+> **[D] DECISÃO HOMOLOGADA em 2026-09-23 (Etapa 8, Opção A):** as datas do cronograma moram nas **próprias ETAPAS/SUBETAPAS** (fonte de verdade única por registro); a tela "Cronograma da Obra" é uma **visão** desses registros, não um cadastro paralelo. Esta entidade é **preservada no modelo, mas não é usada como tabela** e não tem aba no Excel — nada foi apagado: `BaseDados.adicionar_planejamento` (Etapa 1) continua funcionando e testado. Reabrir seu uso exige homologar antes o significado do "N" de "1 Etapa → N Planejamento" (replanejamentos? janelas de trabalho? marcos?), que permanece **indefinido em todas as fontes**, incluindo os três documentos históricos de Planejamento (templates sem conteúdo). Ver Registro de homologação — Revisão 12.
+>
+> Os campos abaixo permanecem registrados como estavam, para rastreabilidade — **não** descrevem o cronograma em uso.
 
 **Existência no escopo V1:** [D] — AGENTS.md §12, MOD_001_V6_3.
 **Nota terminológica [P]:** este documento trata "Planejamento" como o **módulo de dados** (datas previstas/reais por etapa). A tela de interface correspondente passa a se chamar **"Cronograma da Obra"** (ver Seção 6 do `PLANO_FECHAMENTO_ESPECIFICACAO_V1` e `UI_001`), para não colidir com "Cronograma de Execução do Projeto" (pasta `16_CRONOGRAMA_E_EXECUCAO`, que trata do prazo do próprio desenvolvimento do sistema).
@@ -515,3 +530,35 @@ Em 2026-09-23, construído o módulo **EXECUÇÃO/MEDIÇÕES** ("Etapa 7" de con
 - **REG-009 (medição acima de 100%):** resolvido por precedente, não por invenção — mesma política já homologada em REG-010/REG-032 ("o sistema informa, o Operador decide"). Lançamento acima de 100% é permitido e apenas informativo.
 
 **Preservado, não reaberto:** todas as decisões das Revisões 1–10. **Permanecem [H]/fora de escopo, não inventados nesta rodada:** Planejamento e Pendências (módulos ainda não construídos); SLA de Pendência (REG-011); thresholds de alerta (REG-013/014/015); domínio de "Status" de Execução/Medição (campo genérico da entidade); mecanismo de vínculo entre Aporte e Serviço executável para fins de peso físico (REG-021).
+
+## Registro de homologação — Revisão 12
+
+Em 2026-09-23, construído o módulo **PLANEJAMENTO / Cronograma da Obra** ("Etapa 8" de construção).
+
+**[C] CONFLITO ENCONTRADO E RESOLVIDO — duplicidade estrutural das datas do cronograma.** A Etapa 8 identificou que as datas do cronograma estavam modeladas em **dois lugares simultâneos**, sem que nenhuma fonte definisse qual era a fonte de verdade:
+1. **ETAPAS** já possuía os 4 campos próprios (Data Início/Fim Prevista e Real) desde a Revisão 1 — presentes também no código desde a Etapa 1, porém nunca expostos nem calculados;
+2. **PLANEJAMENTO** era uma entidade separada com as mesmas datas, e o relacionamento declarado em ETAPAS era "1 Etapa → **N** Planejamento (datas)" — sem que o significado desse "N" (replanejamentos? janelas? marcos?) fosse definido em lugar algum;
+3. **SUBETAPAS** não possuía nenhum campo de data, embora `UI_001` já previsse a tela "Cronograma da Obra" exibindo "as datas previstas e reais das Etapas/**Subetapas**".
+
+Fontes verificadas sem resposta: `DAD_001` (corrente), `UI_001`, `REG_001` (REG-014), `SEC_001`, `MOD_001`, `AGENTS.md`, Documentação Mestra corrente e histórica, e os três documentos históricos de Planejamento (`MOD_004_PLANEJAMENTO`, `DAD_005_PLANEJAMENTO`, `REG_004_PLANEJAMENTO`) — **os três são templates sem conteúdo**, mesma constatação que a `AUDITORIA_PRE_CONSTRUCAO_V1` já havia feito para os documentos SEC_00X.
+
+**[D] DECISÃO HOMOLOGADA pelo responsável do projeto em 2026-09-23 (Opção A):** as datas do cronograma moram nas **próprias ETAPAS e SUBETAPAS**, com fonte de verdade única por registro. A tela "Cronograma da Obra" é uma **visão** desses registros, não um cadastro paralelo. Reflexos:
+- **ETAPAS** — os 4 campos de data existentes passam de [P] inertes a **fonte de verdade do cronograma da Etapa**, agora digitáveis no Excel e base dos cálculos.
+- **SUBETAPAS** — ganham os **4 campos de data novos** (Data Início/Fim Prevista e Real), com a mesma semântica de ETAPAS, fechando a lacuna apontada por `UI_001`. Campos opcionais: Subetapas cadastradas antes desta etapa continuam válidas, sem migração.
+- **PLANEJAMENTO** — entidade **preservada e reservada, sem uso como tabela**. Nada foi apagado: a entidade e `BaseDados.adicionar_planejamento` (Etapa 1) continuam funcionando e testados. Reabrir seu uso exige homologar antes o significado do "N", que permanece indefinido.
+- **Campos calculados derivados (não são colunas digitáveis — vivem como `@property` em `Etapa`/`Subetapa` e nas colunas calculadas das abas Etapas/Subetapas):** Duração Prevista (dias), Duração Real (dias) e Variação de Prazo (dias).
+- **Consolidação no nível da OBRA** — valores **derivados, com rótulo explícito** ("das Etapas") que **não sobrescrevem** `Data de Início`/`Data Prevista de Término`/`Data Real de Término` da própria OBRA, que continuam sendo o que o Operador declarou (REG-032, "o sistema informa, o Operador decide"). O motor (`src/planejamento/calculos.py`) expõe **sete** funções; a aba Início exibe **três** delas:
+
+  | Função do motor | Exibida na aba Início? |
+  |---|---|
+  | `data_inicio_prevista_obra` (menor Início Previsto das Etapas) | Sim — "Início Previsto (menor data das Etapas)" |
+  | `data_fim_prevista_obra` (maior Fim Previsto das Etapas) | Sim — "Fim Previsto (maior data das Etapas)" |
+  | `data_inicio_real_obra` / `data_fim_real_obra` | Não — datas reais consolidadas, disponíveis no motor |
+  | `duracao_prevista_obra_dias` | Não — deriva só das duas datas previstas consolidadas; disponível para consumo futuro (ex.: Painel Gerencial) |
+
+- **INDICADOR REJEITADO E REMOVIDO — "Variação de Prazo da Obra" (decisão do responsável do projeto, 2026-09-23, Alternativa D1):** o indicador consolidado criado durante a Etapa 8 foi **removido**, junto com a regra de supressão que o acompanhava (então chamada "Regra 8.1", que passa a **não ter mais classificação [H]**, por não ser mais uma regra do sistema). Motivo: **não havia regra de negócio homologada que definisse o significado de "a Obra está atrasada"**, e o cálculo era defeituoso — `MAX(Fim Real)` só é o fim real da Obra quando todas as Etapas previstas terminaram, de modo que os dois operandos podiam vir de **Etapas diferentes** (o caso real testado dava −113 dias, lido como "antecipação" numa obra atrasada). **Não** foi criada regra nova nem o indicador foi redefinido para "Etapas concluídas". A informação de prazo permanece nos níveis em que tem significado direto: **Variação de Prazo por Etapa e por Subetapa**. Removidos do código: `variacao_prazo_obra_dias`, `duracao_real_obra_dias` e `ha_etapa_prevista_nao_concluida`, além da célula na aba Início. **Não recriar sem homologação prévia.** Ver `05_REGRAS_DE_NEGOCIO/REG_001`, Nota de Implementação — Etapa 8.
+- **[H] NÃO DEFINIDO — relação entre as datas de uma SUBETAPA e as da sua ETAPA:** nenhuma fonte define se a data da Etapa deve conter, consolidar ou ser validada contra as datas das suas Subetapas. Nesta etapa, os dois níveis são **independentes**: uma Subetapa pode ter Fim Previsto posterior ao da sua Etapa sem aviso, e a consolidação da Obra lê **apenas as Etapas**, nunca as Subetapas. Nada foi inventado — registrado aqui como pendência explícita de homologação.
+- **Decisão de implementação (não é regra de negócio nova):** duração e variação usam **subtração pura de datas** (`fim − início`), sem `+1` de contagem inclusiva — duas datas iguais resultam em 0 dias. Nenhuma fonte define contagem inclusiva; a subtração pura é a mesma operação de toda variação/saldo já homologada (REG-005/REG-010/REG-028). Contagem inclusiva, se desejada, é item de homologação.
+- **Convenção de sinal:** Variação de Prazo positiva = atraso; negativa = antecipação — mesma convenção já homologada em ALTERAÇÕES/"Impacto no Prazo" (Etapa 5).
+
+**Preservado, não reaberto:** todas as decisões das Revisões 1–11. **Permanecem [H]/fora de escopo, não inventados nesta rodada:** threshold de dias que caracteriza alerta de atraso (REG-014, cujo texto diz "Resultado: não definido") e, por dependência dele, o campo calculado "Status do Prazo"; lógica de encadeamento/dependência entre Etapas (tipo Gantt); significado do "N" de PLANEJAMENTO; módulo PENDÊNCIAS inteiro (SLA/REG-011, domínio de Status e critério de Prioridade seguem indefinidos).

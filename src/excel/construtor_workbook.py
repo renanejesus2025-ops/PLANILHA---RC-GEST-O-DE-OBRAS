@@ -88,6 +88,25 @@ from src.modelo.enums import (
 LINHAS_MODELO = 30
 
 # (título da coluna, largura, oculta, calculada-por-fórmula)
+# Etapa 8 (Planejamento/Cronograma da Obra) — as 7 colunas de cronograma
+# abaixo são idênticas em Etapas e Subetapas: 4 datas digitadas pelo
+# Operador (fonte de verdade única do registro, decisão homologada em
+# 2026-09-23, Opção A) + 3 colunas calculadas. Elas ficam NAS PRÓPRIAS
+# abas Etapas/Subetapas — que já são Tabelas Excel estruturadas e se
+# expandem sozinhas — em vez de numa terceira aba "Cronograma" montada
+# por fórmulas: uma aba-espelho teria buffer fixo de linhas e voltaria a
+# ignorar silenciosamente registros além dele, exatamente o defeito
+# corrigido na Etapa 5.1 (AUD-20/AUD-21). Ver relatório da Etapa 8.
+_COLUNAS_CRONOGRAMA = [
+    ("Data Início Prevista", 18, False, False),
+    ("Data Fim Prevista", 18, False, False),
+    ("Data Início Real", 16, False, False),
+    ("Data Fim Real", 16, False, False),
+    ("Duração Prevista (dias)", 20, False, True),
+    ("Duração Real (dias)", 18, False, True),
+    ("Variação de Prazo (dias)", 20, False, True),
+]
+
 COLUNAS_ETAPAS = [
     ("ID (técnico)", 14, True, False),
     ("Nome", 30, False, False),
@@ -100,6 +119,7 @@ COLUNAS_ETAPAS = [
     # `src/execucao/calculos.py`, docstring do módulo).
     ("Peso Consolidado (Execução)", 24, False, True),
     ("Contribuição na Obra (Execução)", 28, False, True),
+    *_COLUNAS_CRONOGRAMA,  # Etapa 8
 ]
 COLUNAS_SUBETAPAS = [
     ("ID (técnico)", 14, True, False),
@@ -111,6 +131,7 @@ COLUNAS_SUBETAPAS = [
     # Etapa 7 — mesma ressalva da aba Etapas acima.
     ("Peso Consolidado (Execução)", 24, False, True),
     ("Contribuição na Obra (Execução)", 28, False, True),
+    *_COLUNAS_CRONOGRAMA,  # Etapa 8
 ]
 COLUNAS_SERVICOS = [
     ("ID (técnico)", 14, True, False),                      # A
@@ -302,6 +323,14 @@ COL_SUB_ID_ETAPA = 5
 COL_SUB_TOTAL = 6
 COL_SUB_PESO_CONSOLIDADO = 7
 COL_SUB_CONTRIBUICAO = 8
+# Etapa 8 — cronograma (mesmo bloco de 7 colunas em Etapas e Subetapas)
+COL_SUB_DATA_INICIO_PREVISTA = 9
+COL_SUB_DATA_FIM_PREVISTA = 10
+COL_SUB_DATA_INICIO_REAL = 11
+COL_SUB_DATA_FIM_REAL = 12
+COL_SUB_DURACAO_PREVISTA = 13
+COL_SUB_DURACAO_REAL = 14
+COL_SUB_VARIACAO_PRAZO = 15
 
 COL_ETA_ID = 1
 COL_ETA_NOME = 2
@@ -311,6 +340,20 @@ COL_ETA_ID_OBRA = 5
 COL_ETA_TOTAL = 6
 COL_ETA_PESO_CONSOLIDADO = 7
 COL_ETA_CONTRIBUICAO = 8
+# Etapa 8 — cronograma
+COL_ETA_DATA_INICIO_PREVISTA = 9
+COL_ETA_DATA_FIM_PREVISTA = 10
+COL_ETA_DATA_INICIO_REAL = 11
+COL_ETA_DATA_FIM_REAL = 12
+COL_ETA_DURACAO_PREVISTA = 13
+COL_ETA_DURACAO_REAL = 14
+COL_ETA_VARIACAO_PRAZO = 15
+
+# Etapa 8 — formato numérico das 3 colunas calculadas de cronograma:
+# dias são NÚMERO inteiro, nunca data (uma diferença de datas formatada
+# como data exibiria "01/01/1900" em vez de "0 dias").
+FORMATO_DIAS = "0"
+FORMATO_DATA_BR = "DD/MM/YYYY"
 
 NOME_INTERVALO_ETAPAS = "Lista_Etapas"
 NOME_INTERVALO_SUBETAPAS = "Lista_Subetapas"
@@ -401,7 +444,10 @@ def construir_workbook(base: BaseDados | None = None) -> Workbook:
     _construir_aba_financeiro(wb, financeiro)
     _construir_aba_pagamentos(wb, list(base.pagamentos.values()), base.financeiro)
     _construir_aba_alteracoes(wb, alteracoes)
-    _construir_aba_compras(wb, list(base.compras.values()), base.fornecedores)
+    _construir_aba_compras(
+        wb, list(base.compras.values()), base.fornecedores,
+        base.etapas, base.subetapas, base.servicos,
+    )
     _construir_aba_resumo_financeiro(wb)
     _construir_aba_base_dados(wb, id_obra=id_obra)
     _criar_intervalos_nomeados(wb)
@@ -489,15 +535,64 @@ def _construir_aba_inicio(wb: Workbook, *, obra) -> None:
     celula_rotulo = ws.cell(row=linha, column=1, value="% Execução Física da Obra")
     celula_rotulo.font = FONTE_ROTULO_FORM
     titulo_contrib_etapas = COLUNAS_ETAPAS[COL_ETA_CONTRIBUICAO - 1][0]
+    # Etapa 8.2: sem nenhum Serviço Elegível (REG-022) o `SUM` de uma
+    # coluna vazia devolve 0, e a tela exibia "0,00% executado" onde o
+    # Python diz "não calculável" (`percentual_execucao_obra` retorna
+    # `None` quando não há elegíveis). Ler 0% como "nada foi executado"
+    # numa obra que sequer tem base de cálculo é a mesma leitura inválida
+    # que REG-031 proíbe para a divisão por zero — daí o "N/D", a mesma
+    # representação já homologada em % Orçamento Consumido e Variação %.
     celula_valor = ws.cell(
         row=linha,
         column=2,
-        value=f"=SUM({NOME_TABELA_ETAPAS}[{titulo_contrib_etapas}])",
+        value=(
+            f'=IF({_contagem_servicos_elegiveis()}=0,"N/D",'
+            f"SUM({NOME_TABELA_ETAPAS}[{titulo_contrib_etapas}]))"
+        ),
     )
     celula_valor.number_format = "0.00%"
     celula_valor.border = BORDA_CELULA
     celula_valor.fill = PREENCHIMENTO_CALCULADO
     celula_valor.font = FONTE_CALCULADA
+    linha += 1
+
+    # Etapa 8 — cronograma consolidado da Obra (derivado das Etapas).
+    # NÃO sobrescreve "Data Inicial Planejada"/"Data Final Planejada"
+    # acima, que continuam sendo o que o Operador declarou para a Obra:
+    # estes são valores DERIVADOS, com rótulo explícito ("das Etapas"),
+    # para a leitura gerencial "as Etapas cabem no prazo declarado?".
+    # Nenhuma automação altera a data declarada (REG-032, "o sistema
+    # informa, o Operador decide"). Referências estruturadas de Tabela,
+    # sem range fixo — somam todas as Etapas cadastradas.
+    titulo_ini_prev = COLUNAS_ETAPAS[COL_ETA_DATA_INICIO_PREVISTA - 1][0]
+    titulo_fim_prev = COLUNAS_ETAPAS[COL_ETA_DATA_FIM_PREVISTA - 1][0]
+    coluna_ini_prev = f"{NOME_TABELA_ETAPAS}[{titulo_ini_prev}]"
+    coluna_fim_prev = f"{NOME_TABELA_ETAPAS}[{titulo_fim_prev}]"
+
+    # COUNT() em volta do MIN/MAX: sem nenhuma data lançada, MIN/MAX
+    # retornariam 0 (exibido como 00/01/1900). Vazio é a leitura
+    # correta de "não calculável" — nunca uma data inventada.
+    # NÃO existe aqui uma célula "Variação de Prazo da Obra": o indicador
+    # foi REJEITADO e REMOVIDO por decisão do responsável do projeto em
+    # 2026-09-23 (Alternativa D1), por não ter regra de negócio
+    # homologada que definisse seu significado e por produzir um número
+    # enganoso (`MAX(Fim Real) − MAX(Fim Previsto)` pode tomar operandos
+    # de Etapas diferentes). A Variação de Prazo permanece nas colunas
+    # das abas Etapas e Subetapas, por registro. Não recriar aqui sem
+    # homologação — ver `src/planejamento/calculos.py` e `REG_001`.
+    linhas_cronograma = [
+        ("Início Previsto (menor data das Etapas)", f'=IF(COUNT({coluna_ini_prev})=0,"",MIN({coluna_ini_prev}))', FORMATO_DATA_BR),
+        ("Fim Previsto (maior data das Etapas)", f'=IF(COUNT({coluna_fim_prev})=0,"",MAX({coluna_fim_prev}))', FORMATO_DATA_BR),
+    ]
+    for rotulo, formula, formato in linhas_cronograma:
+        celula_rotulo = ws.cell(row=linha, column=1, value=rotulo)
+        celula_rotulo.font = FONTE_ROTULO_FORM
+        celula_valor = ws.cell(row=linha, column=2, value=formula)
+        celula_valor.number_format = formato
+        celula_valor.border = BORDA_CELULA
+        celula_valor.fill = PREENCHIMENTO_CALCULADO
+        celula_valor.font = FONTE_CALCULADA
+        linha += 1
 
     ws.freeze_panes = "A2"
 
@@ -521,11 +616,17 @@ def _construir_aba_etapas(wb: Workbook, etapas: list, *, id_obra: str) -> None:
             ws.cell(row=r, column=COL_ETA_ORDEM, value=etapa.ordem)
             ws.cell(row=r, column=COL_ETA_STATUS, value=etapa.status)
         else:
+            etapa = None
             ws.cell(
                 row=r,
                 column=COL_ETA_ID,
                 value=f'=IF($B{r}="","","{prefixo}-"&TEXT(ROW()-1,"0000"))',
             )
+
+        # Etapa 8 — bloco de cronograma (4 datas + 3 calculadas).
+        _escrever_bloco_cronograma(
+            ws, r, etapa, primeira_coluna=COL_ETA_DATA_INICIO_PREVISTA
+        )
 
         # Sempre fórmula, linha literal ou não (campo derivado):
         ws.cell(row=r, column=COL_ETA_ID_OBRA, value=f'=IF($B{r}="","",Base_Dados!$B$2)')
@@ -576,7 +677,10 @@ def _construir_aba_etapas(wb: Workbook, etapas: list, *, id_obra: str) -> None:
     ws.add_data_validation(dv_ordem)
     dv_ordem.add(f"C2:C{ultima_linha}")
 
-    _adicionar_validacao_nome_unico(ws, coluna_nome=COL_ETA_NOME, ultima_linha=ultima_linha, nome_tabela=NOME_TABELA_ETAPAS)
+    _adicionar_validacao_nome_unico(ws, coluna_nome=COL_ETA_NOME, ultima_linha=ultima_linha, intervalo_nomeado=NOME_INTERVALO_ETAPAS)
+    _adicionar_validacao_de_datas(
+        ws, primeira_coluna=COL_ETA_DATA_INICIO_PREVISTA, ultima_linha=ultima_linha
+    )
 
     for r in range(2, ultima_linha + 1):
         ws.cell(row=r, column=COL_ETA_TOTAL).number_format = "#,##0.00"
@@ -612,11 +716,18 @@ def _construir_aba_subetapas(wb: Workbook, subetapas: list, etapas_por_id: dict)
             ws.cell(row=r, column=COL_SUB_ETAPA, value=getattr(etapa, "nome", None))
             ws.cell(row=r, column=COL_SUB_STATUS, value=subetapa.status)
         else:
+            subetapa = None
             ws.cell(
                 row=r,
                 column=COL_SUB_ID,
                 value=f'=IF($B{r}="","","{prefixo}-"&TEXT(ROW()-1,"0000"))',
             )
+
+        # Etapa 8 — bloco de cronograma (4 datas + 3 calculadas). As
+        # Subetapas não tinham NENHUM campo de data antes desta etapa.
+        _escrever_bloco_cronograma(
+            ws, r, subetapa, primeira_coluna=COL_SUB_DATA_INICIO_PREVISTA
+        )
 
         ws.cell(
             row=r,
@@ -677,7 +788,10 @@ def _construir_aba_subetapas(wb: Workbook, subetapas: list, etapas_por_id: dict)
     ws.add_data_validation(dv_etapa)
     dv_etapa.add(f"C2:C{ultima_linha}")
 
-    _adicionar_validacao_nome_unico(ws, coluna_nome=COL_SUB_NOME, ultima_linha=ultima_linha, nome_tabela=NOME_TABELA_SUBETAPAS)
+    _adicionar_validacao_nome_unico(ws, coluna_nome=COL_SUB_NOME, ultima_linha=ultima_linha, intervalo_nomeado=NOME_INTERVALO_SUBETAPAS)
+    _adicionar_validacao_de_datas(
+        ws, primeira_coluna=COL_SUB_DATA_INICIO_PREVISTA, ultima_linha=ultima_linha
+    )
 
     for r in range(2, ultima_linha + 1):
         for coluna in (COL_SUB_PESO_CONSOLIDADO, COL_SUB_CONTRIBUICAO):
@@ -824,6 +938,15 @@ def _construir_aba_servicos(wb: Workbook, servicos: list, subetapas_por_id: dict
         # Peso Automático (REG-008) — razão 0–1: Valor Previsto do
         # Serviço / Σ Valor Previsto dos Serviços Elegíveis da Obra
         # (denominador sempre global, REG-022). "" quando não elegível.
+        # Etapa 8.2 (D-COM-2): o denominador (Σ Valor Previsto dos
+        # Serviços Elegíveis) pode ser ZERO — basta que todos os
+        # elegíveis estejam orçados em 0. Sem guarda, o Excel devolvia
+        # `#DIV/0!`, que se propagava por Peso Efetivo → Contribuição →
+        # Subetapas → Etapas → `Início!B9`, contrariando REG-031
+        # (divisão por zero é "não calculável", nunca erro). O Python já
+        # tratava: `peso_automatico_bruto` retorna `None` quando o total
+        # é zero. "N/D" é a mesma representação já homologada em
+        # REG-031 (% Orçamento Consumido) e REG-010 (Variação %).
         ws.cell(
             row=r,
             column=COL_SRV_PESO_AUTOMATICO,
@@ -831,7 +954,8 @@ def _construir_aba_servicos(wb: Workbook, servicos: list, subetapas_por_id: dict
                 f'=IF(OR($A{r}="",${letra_status}{r}="{_ROTULO_CANCELADO}",'
                 f'${letra_status}{r}="{_ROTULO_RETIRADO}",${letra_status}{r}="{_ROTULO_SUBSTITUIDO}",'
                 f'${letra_vp}{r}=""),"",'
-                f'${letra_vp}{r}/SUMIFS(${letra_vp}:${letra_vp},{_criterios_elegibilidade}))'
+                f'IF(SUMIFS(${letra_vp}:${letra_vp},{_criterios_elegibilidade})=0,"N/D",'
+                f'${letra_vp}{r}/SUMIFS(${letra_vp}:${letra_vp},{_criterios_elegibilidade})))'
             ),
         )
         # Peso Efetivo (REG-023/024/025) — razão 0–1: protege peso manual
@@ -843,6 +967,23 @@ def _construir_aba_servicos(wb: Workbook, servicos: list, subetapas_por_id: dict
         # Ajustado tal como informado, deixando a inconsistência visível
         # para o Operador corrigir (mesmo princípio "sistema informa" já
         # usado nas demais etapas).
+        # Etapa 8.2 (D-COM-2): quando a base proporcional é zero (todos
+        # os automáticos elegíveis com Peso Automático "N/D", isto é,
+        # todos orçados em 0), o Excel devolvia vazio enquanto o Python
+        # distribuía a faixa restante IGUALMENTE entre os automáticos
+        # (`pesos_efetivos_obra`, ramo `total_bruto_automaticos == 0`,
+        # Etapa 7). Os dois motores passam a fazer o mesmo — nenhuma
+        # regra foi criada aqui: a divisão igualitária já era o
+        # comportamento implementado e testado no Python.
+        soma_automaticos = (
+            f'SUMIFS(${letra_peso_automatico}:${letra_peso_automatico},'
+            f'{_criterios_elegibilidade},${letra_peso_ajustado}:${letra_peso_ajustado},"")'
+        )
+        soma_manuais = (
+            f'SUMIFS(${letra_peso_ajustado}:${letra_peso_ajustado},{_criterios_elegibilidade},'
+            f'${letra_peso_ajustado}:${letra_peso_ajustado},"<>")'
+        )
+        qtd_automaticos = _contagem_servicos_elegiveis(somente_automaticos=True)
         ws.cell(
             row=r,
             column=COL_SRV_PESO_EFETIVO,
@@ -851,12 +992,9 @@ def _construir_aba_servicos(wb: Workbook, servicos: list, subetapas_por_id: dict
                 f'${letra_status}{r}="{_ROTULO_RETIRADO}",${letra_status}{r}="{_ROTULO_SUBSTITUIDO}",'
                 f'${letra_vp}{r}=""),"",'
                 f'IF(${letra_peso_ajustado}{r}<>"",${letra_peso_ajustado}{r},'
-                f'IF(SUMIFS(${letra_peso_automatico}:${letra_peso_automatico},{_criterios_elegibilidade},'
-                f'${letra_peso_ajustado}:${letra_peso_ajustado},"")=0,"",'
-                f'${letra_peso_automatico}{r}/SUMIFS(${letra_peso_automatico}:${letra_peso_automatico},'
-                f'{_criterios_elegibilidade},${letra_peso_ajustado}:${letra_peso_ajustado},"")'
-                f'*(1-SUMIFS(${letra_peso_ajustado}:${letra_peso_ajustado},{_criterios_elegibilidade},'
-                f'${letra_peso_ajustado}:${letra_peso_ajustado},"<>")))))'
+                f'IF({soma_automaticos}=0,'
+                f'IF({qtd_automaticos}=0,"N/D",(1-{soma_manuais})/{qtd_automaticos}),'
+                f'${letra_peso_automatico}{r}/{soma_automaticos}*(1-{soma_manuais}))))'
             ),
         )
         # Contribuição na Obra = Peso Efetivo × % Execução do Serviço
@@ -897,7 +1035,7 @@ def _construir_aba_servicos(wb: Workbook, servicos: list, subetapas_por_id: dict
     # (Etapa 5.1) aplicada aqui para a nova coluna referenciada por nome.
     _adicionar_validacao_nome_unico(
         ws, coluna_nome=COL_SRV_DESCRICAO, ultima_linha=ultima_linha,
-        nome_tabela=NOME_TABELA_SERVICOS, titulo_coluna="Descrição",
+        intervalo_nomeado=NOME_INTERVALO_SERVICOS, titulo_coluna="Descrição",
     )
 
     # Dropdown "Status" — domínio fechado homologado na Etapa 3 (Seção 18).
@@ -1197,7 +1335,7 @@ def _construir_aba_financeiro(wb: Workbook, lancamentos: list) -> None:
 
     _adicionar_validacao_nome_unico(
         ws, coluna_nome=COL_FIN_DESCRICAO, ultima_linha=ultima_linha,
-        nome_tabela=NOME_TABELA_FINANCEIRO, titulo_coluna="Descrição",
+        intervalo_nomeado=NOME_INTERVALO_FINANCEIRO_DESCRICOES, titulo_coluna="Descrição",
     )
 
     for r in range(2, ultima_linha + 1):
@@ -1509,7 +1647,14 @@ def _construir_aba_alteracoes(wb: Workbook, alteracoes: list) -> None:
 # 2/7/8/9) — o único cálculo é a Variação contra o Serviço vinculado,
 # quando houver (ver `src/compras/calculos.py`).
 # --------------------------------------------------------------------
-def _construir_aba_compras(wb: Workbook, compras: list, fornecedores_por_id: dict) -> None:
+def _construir_aba_compras(
+    wb: Workbook,
+    compras: list,
+    fornecedores_por_id: dict,
+    etapas_por_id: dict,
+    subetapas_por_id: dict,
+    servicos_por_id: dict,
+) -> None:
     ws = wb.create_sheet("Compras")
     _escrever_cabecalho(ws, COLUNAS_COMPRAS)
 
@@ -1536,6 +1681,24 @@ def _construir_aba_compras(wb: Workbook, compras: list, fornecedores_por_id: dic
             # cadastrado").
             fornecedor = fornecedores_por_id.get(compra.id_fornecedor) if compra.id_fornecedor else None
             ws.cell(row=r, column=COL_COM_FORNECEDOR, value=getattr(fornecedor, "nome_razao_social", None))
+            # Etapa 8.2 (D-COM-1) — vínculos opcionais escritos pelo NOME
+            # amigável, mesmo padrão de todas as outras abas (Subetapas→
+            # Etapa, Serviços→Subetapa, Execução→Serviço, Pagamentos→
+            # Lançamento). Antes desta correção, uma Compra que tinha
+            # `id_servico` no Python chegava ao Excel com a coluna
+            # "Serviço" VAZIA: a coluna técnica ID_Servico (resolvida por
+            # MATCH sobre este nome) ficava vazia e, com ela, Planejado,
+            # Variação R$ e Variação % — ou seja, REG-010 simplesmente não
+            # era calculada sobre dados existentes. Detectado pela
+            # validação Excel/COM da Etapa 8.
+            # Os IDs técnicos continuam internos (colunas ocultas Q/R/S,
+            # sempre por fórmula) — aqui só entra o rótulo amigável.
+            etapa = etapas_por_id.get(compra.id_etapa) if compra.id_etapa else None
+            ws.cell(row=r, column=COL_COM_ETAPA, value=getattr(etapa, "nome", None))
+            subetapa = subetapas_por_id.get(compra.id_subetapa) if compra.id_subetapa else None
+            ws.cell(row=r, column=COL_COM_SUBETAPA, value=getattr(subetapa, "nome", None))
+            servico = servicos_por_id.get(compra.id_servico) if compra.id_servico else None
+            ws.cell(row=r, column=COL_COM_SERVICO, value=getattr(servico, "descricao", None))
             celula_data = ws.cell(row=r, column=COL_COM_DATA, value=compra.data_compra)
             celula_data.number_format = "DD/MM/YYYY"
             ws.cell(row=r, column=COL_COM_VALOR, value=compra.valor)
@@ -1757,6 +1920,142 @@ def _escrever_cabecalho(ws: Worksheet, colunas: list[tuple[str, int, bool, bool]
     ws.row_dimensions[1].height = 30
 
 
+def _contagem_servicos_elegiveis(*, somente_automaticos: bool = False) -> str:
+    """
+    Fórmula que conta os Serviços Elegíveis (REG-022) da Obra — espelho
+    de `servicos_elegiveis_obra`/`servico_elegivel_execucao` em
+    `src/execucao/calculos.py`.
+
+    Com `somente_automaticos=True`, restringe aos que NÃO têm Peso
+    Ajustado manual — a base da redistribuição proporcional (REG-024).
+
+    **Por que `SUMPRODUCT(ISNUMBER(...))` e não `COUNTIFS`:** nas linhas-
+    modelo em branco, a coluna Valor Previsto é uma FÓRMULA que devolve
+    `""`, e o Excel trata célula com fórmula como "não vazia" — um
+    `COUNTIFS(...,"<>")` contaria as 30 linhas de buffer (defeito real
+    encontrado na Etapa 8.2: o denominador virava 31 em vez de 1).
+    `ISNUMBER` conta apenas onde há número de fato, e a referência
+    estruturada limita ao corpo da Tabela (exclui o cabeçalho e
+    acompanha a expansão, sem range fixo).
+    """
+    def coluna(indice: int) -> str:
+        return f"{NOME_TABELA_SERVICOS}[{COLUNAS_SERVICOS[indice - 1][0]}]"
+
+    partes = [
+        f"ISNUMBER({coluna(COL_SRV_VALOR_PREVISTO)})",
+        f'({coluna(COL_SRV_STATUS)}<>"{_ROTULO_CANCELADO}")',
+        f'({coluna(COL_SRV_STATUS)}<>"{_ROTULO_RETIRADO}")',
+        f'({coluna(COL_SRV_STATUS)}<>"{_ROTULO_SUBSTITUIDO}")',
+    ]
+    if somente_automaticos:
+        partes.append(f'({coluna(COL_SRV_PESO_AJUSTADO)}="")')
+    return "SUMPRODUCT(" + "*".join(partes) + ")"
+
+
+def _escrever_bloco_cronograma(ws: Worksheet, r: int, registro, *, primeira_coluna: int) -> None:
+    """
+    Etapa 8 — escreve, na linha `r`, o bloco de 7 colunas de cronograma
+    (4 datas digitadas + 3 calculadas) a partir de `primeira_coluna`.
+
+    Idêntico em Etapas e Subetapas: as duas entidades passaram a ter o
+    mesmo conjunto de datas (decisão homologada em 2026-09-23, Opção A —
+    a data mora no próprio registro, fonte de verdade única). `registro`
+    é `None` nas linhas-modelo em branco.
+
+    As 3 colunas calculadas são SEMPRE fórmula (inclusive nas linhas com
+    dado literal), pelo mesmo motivo das demais etapas: precisam
+    continuar corretas se o Operador editar as datas direto no Excel.
+    """
+    col_ini_prev = primeira_coluna
+    col_fim_prev = primeira_coluna + 1
+    col_ini_real = primeira_coluna + 2
+    col_fim_real = primeira_coluna + 3
+    col_dur_prev = primeira_coluna + 4
+    col_dur_real = primeira_coluna + 5
+    col_variacao = primeira_coluna + 6
+
+    if registro is not None:
+        ws.cell(row=r, column=col_ini_prev, value=registro.data_inicio_prevista)
+        ws.cell(row=r, column=col_fim_prev, value=registro.data_fim_prevista)
+        ws.cell(row=r, column=col_ini_real, value=registro.data_inicio_real)
+        ws.cell(row=r, column=col_fim_real, value=registro.data_fim_real)
+
+    for coluna in (col_ini_prev, col_fim_prev, col_ini_real, col_fim_real):
+        ws.cell(row=r, column=coluna).number_format = FORMATO_DATA_BR
+
+    letra_ini_prev = get_column_letter(col_ini_prev)
+    letra_fim_prev = get_column_letter(col_fim_prev)
+    letra_ini_real = get_column_letter(col_ini_real)
+    letra_fim_real = get_column_letter(col_fim_real)
+
+    # Subtração pura de datas (Etapa 8) — duas datas iguais dão 0 dias,
+    # sem `+1` de contagem inclusiva; nenhuma fonte define contagem
+    # inclusiva (ver `dias_entre` em `src/modelo/entidades.py`).
+    ws.cell(
+        row=r,
+        column=col_dur_prev,
+        value=(
+            f'=IF(OR(${letra_ini_prev}{r}="",${letra_fim_prev}{r}=""),"",'
+            f'${letra_fim_prev}{r}-${letra_ini_prev}{r})'
+        ),
+    )
+    ws.cell(
+        row=r,
+        column=col_dur_real,
+        value=(
+            f'=IF(OR(${letra_ini_real}{r}="",${letra_fim_real}{r}=""),"",'
+            f'${letra_fim_real}{r}-${letra_ini_real}{r})'
+        ),
+    )
+    # Variação de Prazo = Fim Real − Fim Prevista. Positivo = atraso;
+    # negativo = antecipação (convenção de sinal já homologada em
+    # `Alteracao.impacto_prazo_dias`). Número simples, SEM cor/ícone/
+    # alerta — o threshold de REG-014 permanece [H] ("não definido").
+    ws.cell(
+        row=r,
+        column=col_variacao,
+        value=(
+            f'=IF(OR(${letra_fim_prev}{r}="",${letra_fim_real}{r}=""),"",'
+            f'${letra_fim_real}{r}-${letra_fim_prev}{r})'
+        ),
+    )
+
+    for coluna in (col_dur_prev, col_dur_real, col_variacao):
+        celula = ws.cell(row=r, column=coluna)
+        celula.number_format = FORMATO_DIAS
+        celula.fill = PREENCHIMENTO_CALCULADO
+        celula.font = FONTE_CALCULADA
+
+
+def _adicionar_validacao_de_datas(ws: Worksheet, *, primeira_coluna: int, ultima_linha: int) -> None:
+    """
+    Etapa 8 — validação de data nas 4 colunas digitadas do bloco de
+    cronograma (mesmo padrão dos campos de data da aba Início).
+
+    `formula1` usa `DATE(1900,1,1)`, não a string `"1900-01-01"`: o Excel
+    não interpreta essa string como literal de data — ele avalia a
+    expressão aritmética `1900-1-1 = 1898`, e o limite entregue passaria
+    a ser "serial ≥ 1898" (≈ 13/03/1905) em vez de 01/01/1900. Defeito
+    apontado pela auditoria da Etapa 8; corrigido aqui, nas 8 faixas
+    novas. A ocorrência equivalente na aba Início é **anterior a esta
+    etapa** e foi deixada intacta (fora do escopo) — está registrada no
+    relatório da Etapa 8 para decisão do responsável.
+    """
+    for deslocamento in range(4):
+        letra = get_column_letter(primeira_coluna + deslocamento)
+        dv = DataValidation(
+            type="date",
+            operator="greaterThanOrEqual",
+            formula1="DATE(1900,1,1)",
+            allow_blank=True,
+            showErrorMessage=True,
+            errorTitle="Data inválida",
+            error="Informe uma data válida.",
+        )
+        ws.add_data_validation(dv)
+        dv.add(f"{letra}2:{letra}{ultima_linha}")
+
+
 def _aplicar_bordas(ws: Worksheet, ultima_linha: int, n_colunas: int) -> None:
     for linha_de_celulas in ws.iter_rows(min_row=1, max_row=ultima_linha, min_col=1, max_col=n_colunas):
         for celula in linha_de_celulas:
@@ -1797,7 +2096,7 @@ def _registrar_tabela(ws: Worksheet, *, nome: str, ultima_linha: int, n_colunas:
 
 
 def _adicionar_validacao_nome_unico(
-    ws: Worksheet, *, coluna_nome: int, ultima_linha: int, nome_tabela: str, titulo_coluna: str = "Nome"
+    ws: Worksheet, *, coluna_nome: int, ultima_linha: int, intervalo_nomeado: str, titulo_coluna: str = "Nome"
 ) -> None:
     """
     Etapa 5.1 (correção de baixo risco para AUD-18 — vínculo por nome).
@@ -1811,11 +2110,31 @@ def _adicionar_validacao_nome_unico(
     registros com o mesmo Nome/Descrição nesta coluna. Não altera
     dropdowns, MATCH nem nenhum teste que já garante "dropdown mostra
     nome, nunca ID".
+
+    **CORREÇÃO (validação Excel/COM da Etapa 8, 2026-09-23):** a fórmula
+    original era `=COUNTIF(TabelaX[Coluna],B2)=1`, com **referência
+    estruturada de Tabela dentro de uma validação de dados**. O Excel
+    **não aceita referência estruturada em validação de dados** e
+    recusava o arquivo inteiro como corrompido — por isso **nenhuma
+    versão de V5 a V8 abria no Excel real**, defeito que a verificação
+    estrutural por openpyxl nunca detectou (ela não executa o Excel).
+    Confirmado por bissecção contra o Excel instalado: removendo apenas
+    as validações do tipo `custom`, o arquivo abre.
+
+    A fórmula passa a usar o **intervalo nomeado** correspondente
+    (`Lista_Etapas`, `Lista_Subetapas`, `Lista_Servicos`,
+    `Lista_Financeiro_Descricoes`), que o Excel aceita em validação de
+    dados e que aponta exatamente para a mesma coluna da mesma Tabela
+    (`Tabela[Coluna]`, ver `_criar_intervalos_nomeados`). Portanto:
+    **nenhum range fixo é reintroduzido** (AUD-20/AUD-21 preservado) e a
+    regra de negócio da validação é exatamente a mesma. O `=` inicial
+    também foi removido, por não pertencer a fórmula de validação de
+    dados no formato OOXML.
     """
     letra = get_column_letter(coluna_nome)
     dv_unico = DataValidation(
         type="custom",
-        formula1=f"=COUNTIF({nome_tabela}[{titulo_coluna}],{letra}2)=1",
+        formula1=f"COUNTIF({intervalo_nomeado},{letra}2)=1",
         allow_blank=True,
         showErrorMessage=True,
         errorTitle=f"{titulo_coluna} duplicado",
